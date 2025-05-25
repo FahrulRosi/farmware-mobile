@@ -382,8 +382,8 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(width: 16),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
+              children: [
+                const Text(
                   'Humidity (%)',
                   style: TextStyle(
                     fontSize: 16,
@@ -392,8 +392,8 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
                 Text(
-                  '60',
-                  style: TextStyle(
+                  _humidity.toStringAsFixed(1),
+                  style: const TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
                     fontFamily: fontFamily,
