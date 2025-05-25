@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:math';
 import 'package:mqtt_client/mqtt_client.dart';
-import 'package:mqtt_client/mqtt_browser_client.dart';
+import 'package:mqtt_client/mqtt_server_client.dart';
 import 'dart:convert';
 
 class HomePage extends StatefulWidget {
@@ -32,7 +32,7 @@ class _HomePageState extends State<HomePage> {
   final List<String> _timeRanges = ['Day', 'Week', 'Month'];
 
   // Add MQTT and sensor data variables
-  late MqttBrowserClient _client;
+  late MqttServerClient _client;
   double _temperature = 0;
   double _humidity = 0;
   double _soilMoisture = 0;
@@ -46,14 +46,17 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _setupMqttClient() async {
-    _client = MqttBrowserClient(
-        'wss://s1c71808.ala.asia-southeast1.emqxsl.com',
+    _client = MqttServerClient(
+        's1c71808.ala.asia-southeast1.emqxsl.com',
         'flutter_client_${DateTime.now().millisecondsSinceEpoch}');
 
-    _client.port = 8084;
+    _client.port = 8883; // Port untuk MQTT over SSL
+    _client.secure = true; // Menggunakan SSL
     _client.logging(on: true);
     _client.keepAlivePeriod = 60;
-    _client.websocketProtocols = ['mqtt'];
+    _client.onDisconnected = onDisconnected;
+    _client.onConnected = onConnected;
+    _client.onSubscribed = onSubscribed;
 
     final connMessage = MqttConnectMessage()
         .authenticateAs('lokatani', 'lokatani711')
@@ -79,6 +82,18 @@ class _HomePageState extends State<HomePage> {
       debugPrint('Exception: $e');
       _client.disconnect();
     }
+  }
+
+  void onConnected() {
+    debugPrint('Connected to MQTT broker');
+  }
+
+  void onDisconnected() {
+    debugPrint('Disconnected from MQTT broker');
+  }
+
+  void onSubscribed(String topic) {
+    debugPrint('Subscribed to topic: $topic');
   }
 
   void _processMessage(String payload) {

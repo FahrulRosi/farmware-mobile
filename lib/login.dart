@@ -64,10 +64,9 @@ class _LoginPageState extends State<LoginPage> {
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
 
       final AuthResponse res = await Supabase.instance.client.auth.signInWithIdToken(
-        provider: Provider.google,
+        provider: OAuthProvider.google,
         idToken: googleAuth.idToken!,
         accessToken: googleAuth.accessToken,
-       
       );
 
       if (res.user != null) {
