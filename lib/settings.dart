@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({Key? key}) : super(key: key);
@@ -10,36 +10,81 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  bool isEditing = false;
+  final _supabase = Supabase.instance.client;
+  Map<String, dynamic>? _userData;
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  void _loadUserData() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      setState(() {
+        _userData = {
+          'display_name': '${user.userMetadata?['first_name'] ?? ''} ${user.userMetadata?['last_name'] ?? ''}'.trim(),
+          'email': user.email ?? 'No email',
+        };
+        isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
       body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              // Profile Header with Background
-              Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      const Color(0xFF00A86B).withOpacity(0.9),
-                      const Color(0xFF00C853).withOpacity(0.85),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+        child: Column(
+          children: [
+            // Profile Header with Background
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFF00A86B).withOpacity(0.9),
+                    const Color(0xFF00C853).withOpacity(0.85),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 30),
-                    // Profile Image
-                    Stack(
-                      children: [
-                        Container(
+              ),
+              child: Column(
+                children: [
+                  const SizedBox(height: 30),
+                  // Profile Image
+                  Stack(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              spreadRadius: 2,
+                              blurRadius: 8,
+                            ),
+                          ],
+                        ),
+                        child: const CircleAvatar(
+                          radius: 50,
+                          backgroundColor: Colors.white70,
+                          child: Icon(
+                            Icons.person,
+                            size: 50,
+                            color: Color(0xFF00A86B),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: Container(
                           padding: const EdgeInsets.all(4),
                           decoration: BoxDecoration(
                             color: Colors.white,
@@ -47,179 +92,81 @@ class _ProfilePageState extends State<ProfilePage> {
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withOpacity(0.1),
-                                spreadRadius: 2,
-                                blurRadius: 8,
+                                spreadRadius: 1,
+                                blurRadius: 4,
                               ),
                             ],
                           ),
-                          child: const CircleAvatar(
-                            radius: 50,
-                            backgroundColor: Colors.white70,
-                            child: Icon(
-                              Icons.person,
-                              size: 50,
-                              color: Color(0xFF00A86B),
-                            ),
+                          child: const Icon(
+                            Icons.edit,
+                            size: 20,
+                            color: Color(0xFF00A86B),
                           ),
                         ),
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
-                                  spreadRadius: 1,
-                                  blurRadius: 4,
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              Icons.edit,
-                              size: 20,
-                              color: Color(0xFF00A86B),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    // Name
-                    const Text(
-                      'Rahman Wibowo',
-                      style: TextStyle(
-                        fontFamily: 'Poppins',
-                        fontSize: 24,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  // Name
+                  Text(
+                    isLoading ? 'Loading...' : (_userData?['display_name'] ?? 'No name'),
+                    style: const TextStyle(
+                      fontFamily: 'Poppins',
+                      fontSize: 24,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
                     ),
-                    const SizedBox(height: 30),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 30),
+                ],
               ),
+            ),
 
-              // Account Settings Section (directly after header)
-              Container(
-                margin: const EdgeInsets.fromLTRB(20, 20, 20, 20),
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      spreadRadius: 2,
-                      blurRadius: 10,
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  const Text(
+                    'Account Settings',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF2E7D32),
                     ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: const [
-                        Icon(Icons.settings_outlined, color: Color(0xFF00A86B)),
-                        SizedBox(width: 8),
-                        Text(
-                          'Account Settings',
-                          style: TextStyle(
-                            fontFamily: 'Poppins',
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
+                  ),
+                  const SizedBox(height: 16),
+                  _buildSettingsTile(
+                    icon: Icons.person_outline,
+                    title: 'Name',
+                    subtitle: _userData?['display_name'] ?? 'No name',
+                    onTap: () => Navigator.pushNamed(context, '/edit-name'),
+                  ),
+                  _buildSettingsTile(
+                    icon: Icons.email_outlined,
+                    title: 'Email',
+                    subtitle: _userData?['email'] ?? 'No email',
+                    enabled: false,
+                  ),
+                  _buildSettingsTile(
+                    icon: Icons.lock_outline,
+                    title: 'Password',
+                    subtitle: '••••••••',
+                    onTap: () => Navigator.pushNamed(context, '/edit-password'),
+                  ),
+                  const SizedBox(height: 24),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.logout, color: Colors.red),
+                    title: const Text(
+                      'Logout',
+                      style: TextStyle(color: Colors.red),
                     ),
-                    const SizedBox(height: 16),
-                    _buildSettingsTile(
-                      icon: Icons.person_outline,
-                      title: 'Name',
-                      subtitle: 'Rahman Wibowo',
-                    ),
-                    _buildSettingsTile(
-                      icon: Icons.email_outlined,
-                      title: 'Email',
-                      subtitle: 'rahman@example.com',
-                    ),
-                    _buildSettingsTile(
-                      icon: Icons.phone_outlined,
-                      title: 'Phone',
-                      subtitle: '+62 812-3456-7890',
-                    ),
-                    _buildSettingsTile(
-                      icon: Icons.location_on_outlined,
-                      title: 'Location',
-                      subtitle: 'Jakarta, Indonesia',
-                    ),
-                    _buildSettingsTile(
-                      icon: Icons.lock_outline,
-                      title: 'Password',
-                      subtitle: '••••••••',
-                    ),
-                  ],
-                ),
+                    onTap: _showLogoutDialog,
+                  ),
+                ],
               ),
-
-              // Help & Support Section
-              Container(
-                margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      spreadRadius: 2,
-                      blurRadius: 10,
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: const [
-                        Icon(Icons.help_outline, color: Color(0xFF00A86B)),
-                        SizedBox(width: 8),
-                        Text(
-                          'Help & Support',
-                          style: TextStyle(
-                            fontFamily: 'Poppins',
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    _buildSettingsTile(
-                      icon: Icons.security_outlined,
-                      title: 'Privacy Policy',
-                      showDivider: false,
-                    ),
-                    _buildSettingsTile(
-                      icon: Icons.description_outlined,
-                      title: 'Terms of Service',
-                      showDivider: false,
-                    ),
-                    _buildSettingsTile(
-                      icon: Icons.logout,
-                      title: 'Logout',
-                      titleColor: Colors.red,
-                      showDivider: false,
-                      onTap: _showLogoutDialog,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -232,6 +179,7 @@ class _ProfilePageState extends State<ProfilePage> {
     Color? titleColor,
     bool showDivider = true,
     VoidCallback? onTap,
+    bool enabled = true,
   }) {
     return Column(
       children: [
@@ -262,7 +210,7 @@ class _ProfilePageState extends State<ProfilePage> {
             size: 16,
             color: Color(0xFF666666),
           ),
-          onTap: onTap,
+          onTap: enabled ? onTap : null,
         ),
         if (showDivider)
           const Divider(
@@ -274,58 +222,89 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  void _showLogoutDialog() {
+  void _showDeleteAccountDialog() {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          title: const Text(
-            'Logout',
-            style: TextStyle(
-              fontFamily: 'Poppins',
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          title: const Text('Delete Account'),
           content: const Text(
-            'Are you sure you want to logout?',
-            style: TextStyle(
-              fontFamily: 'Poppins',
-              fontSize: 14,
-            ),
+            'Are you sure you want to delete your account? This action cannot be undone.',
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(context); // Close dialog
-              },
-              child: Text(
-                'Cancel',
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  color: Colors.grey[600],
-                ),
-              ),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
             ),
             TextButton(
-              onPressed: () {
-                Navigator.pop(context); // Close dialog
-                Navigator.pushReplacementNamed(context, '/'); // Navigate to login
-              },
+              onPressed: _handleDeleteAccount,
               child: const Text(
-                'Logout',
-                style: TextStyle(
-                  fontFamily: 'Poppins',
-                  color: Color(0xFF00A86B),
-                  fontWeight: FontWeight.w600,
-                ),
+                'Delete',
+                style: TextStyle(color: Colors.red),
               ),
             ),
           ],
         );
       },
     );
+  }
+
+  Future<void> _handleDeleteAccount() async {
+    try {
+      await _supabase.auth.admin.deleteUser(
+        _supabase.auth.currentUser!.id,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error deleting account: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Logout'),
+          content: const Text('Are you sure you want to logout?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: _handleLogout,
+              child: const Text(
+                'Logout',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _handleLogout() async {
+    try {
+      await _supabase.auth.signOut();
+      if (!mounted) return;
+      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error logging out: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }

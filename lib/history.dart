@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
 
 class FirmwareHistoryPage extends StatefulWidget {
   const FirmwareHistoryPage({super.key});
@@ -8,57 +10,57 @@ class FirmwareHistoryPage extends StatefulWidget {
 }
 
 class _FirmwareHistoryPageState extends State<FirmwareHistoryPage> {
-  // Sample data for firmware update history
-  final List<FirmwareUpdate> _updateHistory = [
-    FirmwareUpdate(
-      deviceName: 'Smart Controller #3',
-      fromVersion: 'v1.7.5',
-      toVersion: 'v1.8.2',
-      date: DateTime(2025, 4, 20),
-      status: UpdateStatus.success,
-      details: 'Peningkatan stabilitas dan kinerja perangkat',
-    ),
-    FirmwareUpdate(
-      deviceName: 'Smart Controller #3',
-      fromVersion: 'v1.7.5',
-      toVersion: 'v1.8.0',
-      date: DateTime(2025, 3, 15),
-      status: UpdateStatus.rollback,
-      details: 'Terdeteksi anomali kinerja oleh sistem ML',
-      mlDetails: MLRollbackDetails(
-        confidenceScore: 0.89,
-        anomalyType: 'Memory usage spike',
-        detectedAt: DateTime(2025, 3, 15, 14, 35),
-      ),
-    ),
-    FirmwareUpdate(
-      deviceName: 'IoT Sensor #1',
-      fromVersion: 'v1.2.1',
-      toVersion: 'v1.2.5',
-      date: DateTime(2025, 3, 10),
-      status: UpdateStatus.success,
-      details: 'Perbaikan bug dan optimasi penggunaan baterai',
-    ),
-    FirmwareUpdate(
-      deviceName: 'Gateway Node #2',
-      fromVersion: 'v1.9.3',
-      toVersion: 'v2.0.1',
-      date: DateTime(2025, 2, 25),
-      status: UpdateStatus.success,
-      details: 'Fitur baru: dukungan untuk protokol MQTT 5.0',
-    ),
-    FirmwareUpdate(
-      deviceName: 'Smart Controller #3',
-      fromVersion: 'v1.7.0',
-      toVersion: 'v1.7.5',
-      date: DateTime(2025, 2, 1),
-      status: UpdateStatus.success,
-      details: 'Peningkatan keamanan dan enkripsi data',
-    ),
-  ];
-
+  final _supabase = Supabase.instance.client;
+  bool _isLoading = true;
+  List<FirmwareUpdate> _updateHistory = [];
   String _selectedFilter = 'Semua';
   final List<String> _filterOptions = ['Semua', 'Berhasil', 'Rollback'];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHistory();
+  }
+
+  Future<void> _loadHistory() async {
+    try {
+      setState(() => _isLoading = true);
+
+      final data = await _supabase
+          .from('firmware_history')
+          .select()
+          .order('update_date', ascending: false);
+
+      setState(() {
+        _updateHistory = data.map<FirmwareUpdate>((item) => FirmwareUpdate(
+          deviceName: '${item['device_type']} (${item['node_type']})',
+          fromVersion: item['version_from'] ?? '',
+          toVersion: item['version_to'] ?? '',
+          date: DateTime.parse(item['update_date']),
+          status: item['status'] == 'Berhasil' 
+              ? UpdateStatus.success 
+              : UpdateStatus.rollback,
+          details: item['description'] ?? 'No description',
+          mlDetails: item['status'] == 'Gagal' ? MLRollbackDetails(
+            confidenceScore: 0.89,
+            anomalyType: 'Automatic rollback',
+            detectedAt: DateTime.parse(item['update_date']),
+          ) : null,
+        )).toList();
+        _isLoading = false;
+      });
+    } catch (error) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading history: $error'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   List<FirmwareUpdate> get filteredUpdates {
     if (_selectedFilter == 'Semua') return _updateHistory;
@@ -216,7 +218,7 @@ class _FirmwareHistoryPageState extends State<FirmwareHistoryPage> {
                     padding: EdgeInsets.zero,
                     itemCount: filteredUpdates.length,
                     itemBuilder: (context, index) {
-                      return _buildUpdateHistoryItem(filteredUpdates[index]);
+                      return _buildUpdateCard(filteredUpdates[index]);
                     },
                   ),
                 ),
@@ -351,164 +353,82 @@ class _FirmwareHistoryPageState extends State<FirmwareHistoryPage> {
     );
   }
 
-  Widget _buildUpdateHistoryItem(FirmwareUpdate update) {
-    // Format date manually without intl package
-    String formatDate(DateTime date) {
-      return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year.toString().substring(2)}';
-    }
-
-    String formatTime(DateTime date) {
-      return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-    }
-
-    Color statusColor;
-    IconData statusIcon;
-    String statusText;
-
-    switch (update.status) {
-      case UpdateStatus.success:
-        statusColor = const Color(0xFF2E7D32);
-        statusIcon = Icons.check_circle;
-        statusText = 'Berhasil';
-        break;
-      case UpdateStatus.rollback:
-        statusColor = const Color(0xFFC62828);
-        statusIcon = Icons.restore;
-        statusText = 'Rollback';
-        break;
-      case UpdateStatus.inProgress:
-        statusColor = const Color(0xFF1565C0);
-        statusIcon = Icons.update;
-        statusText = 'Sedang Berjalan';
-        break;
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
+  Widget _buildUpdateCard(FirmwareUpdate update) {
+    final bool isSuccess = update.status == UpdateStatus.success;
+    final String formattedDate = DateFormat('dd/MM/yy').format(update.date);
+    
+    return Card(
+      elevation: 0,
+      color: Colors.white,
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.shade200),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ListTile(
-            title: Text(
-              update.deviceName,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
-              ),
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  formatDate(update.date),
-                  style: TextStyle(
-                    color: Colors.grey[700],
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-            contentPadding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Column(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Text(
-                      update.fromVersion,
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                    const SizedBox(width: 8),
-                    const Icon(
-                      Icons.arrow_forward,
-                      size: 16,
-                      color: Colors.grey,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      update.toVersion,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Icon(
-                      statusIcon,
-                      size: 16,
-                      color: statusColor,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      statusText,
-                      style: TextStyle(
-                        color: statusColor,
-                        fontWeight: FontWeight.w500,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
                 Text(
-                  update.details,
-                  style: TextStyle(
-                    color: Colors.grey[700],
-                    fontSize: 14,
+                  update.deviceName,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-                if (update.status == UpdateStatus.rollback && update.mlDetails != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 12),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.psychology,
-                          size: 16,
-                          color: Color(0xFF0277BD),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Rollback otomatis oleh ML',
-                          style: TextStyle(
-                            color: const Color(0xFF0277BD),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const Spacer(),
-                        const Icon(
-                          Icons.chevron_right,
-                          size: 20,
-                          color: Colors.grey,
-                        ),
-                      ],
-                    ),
+                Text(
+                  formattedDate,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
                   ),
+                ),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: 8),
+            Text(
+              '${update.fromVersion} → ${update.toVersion}',
+              style: const TextStyle(
+                fontSize: 14,
+                color: Colors.black87,
+              ),
+            ),
+            if (update.details != null && update.details!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                update.details!,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isSuccess ? Colors.green.shade50 : Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  isSuccess ? 'Berhasil' : 'Rollback',
+                  style: TextStyle(
+                    color: isSuccess ? Colors.green : Colors.red,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

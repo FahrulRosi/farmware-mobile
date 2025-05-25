@@ -35,12 +35,14 @@ class FirmwareUploadPage extends StatefulWidget {
 
 class _FirmwareUploadPageState extends State<FirmwareUploadPage> {
   final TextEditingController _versionController = TextEditingController();
+  final TextEditingController _descriptionController = TextEditingController();
   String _deviceType = 'ESP 32';
   String _nodeType = 'Pilih Tipe Node';
   
   @override
   void dispose() {
     _versionController.dispose();
+    _descriptionController.dispose();
     super.dispose();
   }
 
@@ -213,6 +215,14 @@ class _FirmwareUploadPageState extends State<FirmwareUploadPage> {
           placeholder: 'Contoh: v1.0.0',
           required: true,
         ),
+        const SizedBox(height: 16), // Add spacing between fields
+        _buildTextField(
+          label: 'Deskripsi',
+          controller: TextEditingController(), // Add this controller to your state
+          placeholder: 'Masukkan deskripsi firmware',
+          required: false,
+          maxLines: 3, // Allow multiple lines for description
+        ),
       ],
     );
   }
@@ -337,6 +347,7 @@ class _FirmwareUploadPageState extends State<FirmwareUploadPage> {
     required TextEditingController controller,
     required String placeholder,
     bool required = false,
+    int maxLines = 1, // Add maxLines parameter
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -367,6 +378,7 @@ class _FirmwareUploadPageState extends State<FirmwareUploadPage> {
         const SizedBox(height: 8),
         TextField(
           controller: controller,
+          maxLines: maxLines, // Use the maxLines parameter
           decoration: InputDecoration(
             hintText: placeholder,
             hintStyle: const TextStyle(

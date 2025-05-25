@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:math';
+import 'package:mqtt_client/mqtt_client.dart';
+import 'package:mqtt_client/mqtt_browser_client.dart';
+import 'dart:convert';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -9,44 +12,152 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
+class SensorData {
+  final double suhu;
+  final double kelembabanUdara;
+  final double kelembabanTanah;
+  final String timestamp;
+
+  SensorData({
+    this.suhu = 0,
+    this.kelembabanUdara = 0,
+    this.kelembabanTanah = 0,
+    required this.timestamp,
+  });
+}
+
 class _HomePageState extends State<HomePage> {
   static const String fontFamily = 'Poppins';
   String _selectedTimeRange = 'Day';
   final List<String> _timeRanges = ['Day', 'Week', 'Month'];
 
-@override
+  // Add MQTT and sensor data variables
+  late MqttBrowserClient _client;
+  double _temperature = 0;
+  double _humidity = 0;
+  double _soilMoisture = 0;
+  List<SensorData> _sensorHistory = [];
+  static const int maxDataPoints = 10;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupMqttClient();
+  }
+
+  Future<void> _setupMqttClient() async {
+    _client = MqttBrowserClient(
+        'wss://s1c71808.ala.asia-southeast1.emqxsl.com',
+        'flutter_client_${DateTime.now().millisecondsSinceEpoch}');
+
+    _client.port = 8084;
+    _client.logging(on: true);
+    _client.keepAlivePeriod = 60;
+    _client.websocketProtocols = ['mqtt'];
+
+    final connMessage = MqttConnectMessage()
+        .authenticateAs('lokatani', 'lokatani711')
+        .withClientIdentifier('flutter_client_${DateTime.now().millisecondsSinceEpoch}')
+        .startClean()
+        .withWillQos(MqttQos.atLeastOnce);
+
+    _client.connectionMessage = connMessage;
+
+    try {
+      await _client.connect();
+      if (_client.connectionStatus!.state == MqttConnectionState.connected) {
+        debugPrint('Connected to MQTT broker');
+        _client.subscribe('monitoring/sensor', MqttQos.atLeastOnce);
+
+        _client.updates!.listen((List<MqttReceivedMessage<MqttMessage>> messages) {
+          final recMess = messages[0].payload as MqttPublishMessage;
+          final payload = MqttPublishPayload.bytesToStringAsString(recMess.payload.message);
+          _processMessage(payload);
+        });
+      }
+    } catch (e) {
+      debugPrint('Exception: $e');
+      _client.disconnect();
+    }
+  }
+
+  void _processMessage(String payload) {
+    try {
+      final data = jsonDecode(payload);
+      final timestamp = DateTime.now().toIso8601String();
+
+      setState(() {
+        if (data['node_id'] == 'node1') {
+          if (data['tipe'] == 'kelembabanTanah') {
+            _soilMoisture = data['nilai'].toDouble();
+          }
+        } else if (data['node_id'] == 'node2') {
+          for (var item in data['data']) {
+            if (item['tipe'] == 'suhu') {
+              _temperature = item['nilai'].toDouble();
+            } else if (item['tipe'] == 'kelembabanUdara') {
+              _humidity = item['nilai'].toDouble();
+            }
+          }
+        }
+
+        // Update history
+        final newData = SensorData(
+          suhu: _temperature,
+          kelembabanUdara: _humidity,
+          kelembabanTanah: _soilMoisture,
+          timestamp: timestamp,
+        );
+
+        _sensorHistory.add(newData);
+        if (_sensorHistory.length > maxDataPoints) {
+          _sensorHistory.removeAt(0);
+        }
+      });
+    } catch (e) {
+      debugPrint('Error processing message: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _client.disconnect();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-  return Scaffold(
-    body: SafeArea(
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildNewLocationHeader(),
-            // Remove padding at the top of this container
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10.0, 0, 10.0, 10.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildTemperatureCard(),
-                  const SizedBox(height: 8),
-                  _buildSoilMoistureCard(),
-                  const SizedBox(height: 8),
-                  _buildHumidityCard(),
-                  const SizedBox(height: 20),
-                  _buildTimeRangeSelector(),
-                  const SizedBox(height: 20),
-                  _buildChart(),
-                ],
+    return Scaffold(
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildNewLocationHeader(),
+              // Remove padding at the top of this container
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10.0, 0, 10.0, 10.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildTemperatureCard(),
+                    const SizedBox(height: 8),
+                    _buildSoilMoistureCard(),
+                    const SizedBox(height: 8),
+                    _buildHumidityCard(),
+                    const SizedBox(height: 20),
+                    _buildTimeRangeSelector(),
+                    const SizedBox(height: 20),
+                    _buildChart(),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildNewLocationHeader() {
     return Container(
@@ -56,7 +167,7 @@ class _HomePageState extends State<HomePage> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xFFE0F7E0),  // Light green background
+            Color(0xFFE0F7E0), // Light green background
             Color(0xFFD8F3D8),
           ],
         ),
@@ -71,11 +182,10 @@ class _HomePageState extends State<HomePage> {
               Text(
                 'Kebun Bayam',
                 style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1B5E20),
-                  fontFamily: fontFamily
-                ),
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1B5E20),
+                    fontFamily: fontFamily),
               ),
               SizedBox(height: 5),
               Text(
@@ -125,6 +235,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // Modify _buildTemperatureCard to use real data
   Widget _buildTemperatureCard() {
     return Card(
       elevation: 1,
@@ -150,8 +261,8 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(width: 16),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
+              children: [
+                const Text(
                   'Temperature (°C)',
                   style: TextStyle(
                     fontSize: 16,
@@ -160,8 +271,8 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
                 Text(
-                  '27.5',
-                  style: TextStyle(
+                  _temperature.toStringAsFixed(1),
+                  style: const TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
                     fontFamily: fontFamily,
@@ -175,7 +286,8 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-Widget _buildSoilMoistureCard() {
+  // Modify _buildSoilMoistureCard to use real data
+  Widget _buildSoilMoistureCard() {
     return Card(
       elevation: 1,
       shape: RoundedRectangleBorder(
@@ -206,18 +318,18 @@ Widget _buildSoilMoistureCard() {
                   Text(
                     'Soil Mosture (%)',
                     style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey,
-                    fontFamily: fontFamily,
+                      fontSize: 16,
+                      color: Colors.grey,
+                      fontFamily: fontFamily,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '70',
-                    style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: fontFamily,
+                    _soilMoisture.toStringAsFixed(1),
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: fontFamily,
                     ),
                   ),
                 ],
@@ -229,6 +341,7 @@ Widget _buildSoilMoistureCard() {
     );
   }
 
+  // Modify _buildHumidityCard to use real data
   Widget _buildHumidityCard() {
     return Card(
       elevation: 1,
@@ -319,191 +432,183 @@ Widget _buildSoilMoistureCard() {
     );
   }
 
-Widget _buildChart() {
-  final List<Color> lineColors = [
-    Colors.red,      // Temperature
-    Colors.green,    // Soil Moisture
-    Colors.blue,     // Humidity
-  ];
-
-  final List<String> legends = [
-    'Temperature',
-    'Soil Moisture', 
-    'Humidity'
-  ];
-
-  // Generate random fluctuations around average values
-  List<double> generatePoints(double average, double variance, int count) {
-    final random = Random();
-    return List.generate(count, (index) {
-      return average + (random.nextDouble() - 0.5) * variance;
+  // Modify _buildChart to use real data
+  Widget _buildChart() {
+    // Instead of random data, use _sensorHistory
+    final spots = List<List<FlSpot>>.generate(3, (i) {
+      return _sensorHistory.asMap().entries.map((entry) {
+        final value = i == 0 ? entry.value.suhu :
+                     i == 1 ? entry.value.kelembabanTanah :
+                             entry.value.kelembabanUdara;
+        return FlSpot(entry.key.toDouble(), value);
+      }).toList();
     });
-  }
 
-  // Generate data points with random fluctuations
-  final tempPoints = generatePoints(27.5, 2.0, 6);  // Variance of ±1.0
-  final soilPoints = generatePoints(70.0, 4.0, 6);  // Variance of ±2.0
-  final humiPoints = generatePoints(60.0, 4.0, 6);  // Variance of ±2.0
+    final List<Color> lineColors = [
+      Colors.red, // Temperature
+      Colors.green, // Soil Moisture
+      Colors.blue, // Humidity
+    ];
 
-  return AspectRatio(
-    aspectRatio: 1.7,
-    child: Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: LineChart(
-                LineChartData(
-                  minX: 0,
-                  maxX: 5,
-                  minY: 0,
-                  maxY: 100,
-                  gridData: FlGridData(
-                    show: true,
-                    drawVerticalLine: true,
-                    horizontalInterval: 20,
-                    verticalInterval: 1,
-                    getDrawingHorizontalLine: (value) {
-                      return FlLine(
-                        color: Colors.grey[300],
-                        strokeWidth: 1,
-                        dashArray: [5, 5],
-                      );
-                    },
-                    getDrawingVerticalLine: (value) {
-                      return FlLine(
-                        color: Colors.grey[300],
-                        strokeWidth: 1,
-                        dashArray: [5, 5],
-                      );
-                    },
-                  ),
-                  titlesData: FlTitlesData(
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 28,
-                        interval: 20,
-                        getTitlesWidget: (value, meta) {
-                          return Text(
-                            value.toInt().toString(),
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 12,
-                              fontFamily: fontFamily,
-                            ),
-                          );
-                        },
-                      ),
+    final List<String> legends = [
+      'Temperature',
+      'Soil Moisture',
+      'Humidity'
+    ];
+
+    return AspectRatio(
+      aspectRatio: 1.7,
+      child: Card(
+        elevation: 1,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: LineChart(
+                  LineChartData(
+                    minX: 0,
+                    maxX: 5,
+                    minY: 0,
+                    maxY: 100,
+                    gridData: FlGridData(
+                      show: true,
+                      drawVerticalLine: true,
+                      horizontalInterval: 20,
+                      verticalInterval: 1,
+                      getDrawingHorizontalLine: (value) {
+                        return FlLine(
+                          color: Colors.grey[300],
+                          strokeWidth: 1,
+                          dashArray: [5, 5],
+                        );
+                      },
+                      getDrawingVerticalLine: (value) {
+                        return FlLine(
+                          color: Colors.grey[300],
+                          strokeWidth: 1,
+                          dashArray: [5, 5],
+                        );
+                      },
                     ),
-                    rightTitles: AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    topTitles: AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 30,
-                        interval: 1,
-                        getTitlesWidget: (value, meta) {
-                          final hours = ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'];
-                          final index = value.toInt();
-                          if (index >= 0 && index < hours.length) {
+                    titlesData: FlTitlesData(
+                      leftTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 28,
+                          interval: 20,
+                          getTitlesWidget: (value, meta) {
                             return Text(
-                              hours[index],
+                              value.toInt().toString(),
                               style: TextStyle(
                                 color: Colors.grey[600],
                                 fontSize: 12,
                                 fontFamily: fontFamily,
                               ),
                             );
-                          }
-                          return const Text('');
-                        },
+                          },
+                        ),
+                      ),
+                      rightTitles: AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      topTitles: AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 30,
+                          interval: 1,
+                          getTitlesWidget: (value, meta) {
+                            final hours = ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'];
+                            final index = value.toInt();
+                            if (index >= 0 && index < hours.length) {
+                              return Text(
+                                hours[index],
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 12,
+                                  fontFamily: fontFamily,
+                                ),
+                              );
+                            }
+                            return const Text('');
+                          },
+                        ),
                       ),
                     ),
+                    borderData: FlBorderData(show: false),
+                    lineBarsData: [
+                      // Temperature Line (Red)
+                      LineChartBarData(
+                        spots: spots[0],
+                        isCurved: false,
+                        color: lineColors[0],
+                        barWidth: 2,
+                        isStrokeCapRound: true,
+                        dotData: FlDotData(show: false),
+                        belowBarData: BarAreaData(show: false),
+                      ),
+                      // Soil Moisture Line (Green)
+                      LineChartBarData(
+                        spots: spots[1],
+                        isCurved: false,
+                        color: lineColors[1],
+                        barWidth: 2,
+                        isStrokeCapRound: true,
+                        dotData: FlDotData(show: false),
+                        belowBarData: BarAreaData(show: false),
+                      ),
+                      // Humidity Line (Blue)
+                      LineChartBarData(
+                        spots: spots[2],
+                        isCurved: false,
+                        color: lineColors[2],
+                        barWidth: 2,
+                        isStrokeCapRound: true,
+                        dotData: FlDotData(show: false),
+                        belowBarData: BarAreaData(show: false),
+                      ),
+                    ],
                   ),
-                  borderData: FlBorderData(show: false),
-                  lineBarsData: [
-                    // Temperature Line (Red)
-                    LineChartBarData(
-                      spots: List.generate(6, (index) => 
-                        FlSpot(index.toDouble(), tempPoints[index])
-                      ),
-                      isCurved: false,
-                      color: lineColors[0],
-                      barWidth: 2,
-                      isStrokeCapRound: true,
-                      dotData: FlDotData(show: false),
-                      belowBarData: BarAreaData(show: false),
-                    ),
-                    // Soil Moisture Line (Green)
-                    LineChartBarData(
-                      spots: List.generate(6, (index) => 
-                        FlSpot(index.toDouble(), soilPoints[index])
-                      ),
-                      isCurved: false,
-                      color: lineColors[1],
-                      barWidth: 2,
-                      isStrokeCapRound: true,
-                      dotData: FlDotData(show: false),
-                      belowBarData: BarAreaData(show: false),
-                    ),
-                    // Humidity Line (Blue)
-                    LineChartBarData(
-                      spots: List.generate(6, (index) => 
-                        FlSpot(index.toDouble(), humiPoints[index])
-                      ),
-                      isCurved: false,
-                      color: lineColors[2],
-                      barWidth: 2,
-                      isStrokeCapRound: true,
-                      dotData: FlDotData(show: false),
-                      belowBarData: BarAreaData(show: false),
-                    ),
-                  ],
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: List.generate(3, (index) {
-                return Row(
-                  children: [
-                    Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: lineColors[index],
-                        shape: BoxShape.circle,
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: List.generate(3, (index) {
+                  return Row(
+                    children: [
+                      Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: lineColors[index],
+                          shape: BoxShape.circle,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      legends[index],
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 12,
-                        fontFamily: fontFamily,
+                      const SizedBox(width: 4),
+                      Text(
+                        legends[index],
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 12,
+                          fontFamily: fontFamily,
+                        ),
                       ),
-                    ),
-                  ],
-                );
-              }),
-            ),
-          ],
+                    ],
+                  );
+                }),
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 }

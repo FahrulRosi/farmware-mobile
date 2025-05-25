@@ -8,6 +8,10 @@ import 'home.dart';
 import 'history.dart';
 import 'firmware.dart';
 import 'settings.dart';
+import 'forgot_password.dart';
+import 'reset_password.dart';
+import 'edit_name.dart';
+import 'edit_password.dart';
 
 void main() async {
   try {
@@ -19,7 +23,7 @@ void main() async {
       url: dotenv.env['SUPABASE_URL']!,
       anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
       debug: true,
-      authFlowType: AuthFlowType.pkce,
+      authFlowType: AuthFlowType.implicit,
     );
     
     runApp(const MyApp());
@@ -55,6 +59,10 @@ class MyApp extends StatelessWidget {
         '/login': (context) => const LoginPage(),
         '/register': (context) => const RegisterPage(),
         '/main': (context) => const MainNavigation(),
+        '/forgot-password': (context) => const ForgotPasswordPage(),
+        '/reset-password': (context) => const ResetPasswordPage(),
+        '/edit-name': (context) => const EditNamePage(),
+        '/edit-password': (context) => const EditPasswordPage(),
       },
     );
   }
@@ -68,74 +76,48 @@ class AuthWrapper extends StatefulWidget {
 }
 
 class _AuthWrapperState extends State<AuthWrapper> {
-  bool _isLoading = true;
-
   @override
   void initState() {
     super.initState();
-    _checkDeepLink();
+    _handleAuthState();
   }
 
-  Future<void> _checkDeepLink() async {
+  Future<void> _handleAuthState() async {
     try {
-      // Parse any deep links that brought the user to the app
-      final initialAuthState = Supabase.instance.client.auth.currentSession;
-      if (mounted) {
-        setState(() => _isLoading = false);
+      final session = await Supabase.instance.client.auth.currentSession;
+      if (session != null) {
+        final fragment = Uri.base.fragment;
+        if (fragment.contains('type=recovery')) {
+          if (!mounted) return;
+          Navigator.of(context).pushReplacementNamed('/reset-password');
+        } else {
+          if (!mounted) return;
+          Navigator.of(context).pushReplacementNamed('/main');
+        }
       }
     } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-      debugPrint('Error checking deep link: $e');
+      debugPrint('Error handling auth state: $e');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
     return StreamBuilder<AuthState>(
       stream: Supabase.instance.client.auth.onAuthStateChange,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return const Scaffold(
-            body: Center(
-              child: Text('An error occurred'),
-            ),
-          );
+          return const LoginPage();
         }
 
         if (snapshot.hasData) {
-          final session = snapshot.data?.session;
-          final event = snapshot.data?.event;
-
-          // Handle various auth state changes
+          final event = snapshot.data!.event;
           switch (event) {
+            case AuthChangeEvent.passwordRecovery:
+              return const ResetPasswordPage();
             case AuthChangeEvent.signedIn:
               return const MainNavigation();
-            case AuthChangeEvent.signedOut:
+            default:
               return const LoginPage();
-            case AuthChangeEvent.passwordRecovery:
-              // TODO: Implement password recovery screen
-              return const LoginPage();
-            case AuthChangeEvent.tokenRefreshed:
-              return session != null ? const MainNavigation() : const LoginPage();
-            case AuthChangeEvent.userUpdated:
-              return session != null ? const MainNavigation() : const LoginPage();
-            case AuthChangeEvent.userDeleted:
-              return const LoginPage();
-            case AuthChangeEvent.mfaChallengeVerified:
-              // TODO: Implement MFA challenge verified handling if needed
-              return session != null ? const MainNavigation() : const LoginPage();
-            case null:
-              return session != null ? const MainNavigation() : const LoginPage();
           }
         }
 

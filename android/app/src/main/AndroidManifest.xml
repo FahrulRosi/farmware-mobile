@@ -31,6 +31,33 @@
                     android:scheme="com.lokatani.app"
                     android:host="login-callback"/>
             </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="com.lokatani.app"
+                    android:host="reset-password" />
+            </intent-filter>
+
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="farmware.supabase.co" />
+                <data android:pathPrefix="/auth/v1/verify" />
+            </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="farmware" />
+                <data android:host="reset-password" />
+            </intent-filter>
+
         </activity>
         <meta-data
             android:name="flutterEmbedding"
