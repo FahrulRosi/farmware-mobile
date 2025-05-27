@@ -14,8 +14,10 @@ class _RegisterPageState extends State<RegisterPage> {
   final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
   bool _isLoading = false;
   bool _isPasswordVisible = false;
+  bool _isConfirmPasswordVisible = false;
   bool _agreedToTerms = false;
 
   final supabase = Supabase.instance.client;
@@ -26,6 +28,7 @@ class _RegisterPageState extends State<RegisterPage> {
     _lastNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -48,9 +51,20 @@ class _RegisterPageState extends State<RegisterPage> {
     }
     return null;
   }
+
+  String? _validateConfirmPassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Konfirmasi password wajib diisi';
+    }
+    if (value != _passwordController.text) {
+      return 'Password tidak cocok';
+    }
+    return null;
+  }
+
   Future<void> _handleSignUp() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     if (!_agreedToTerms) {
       _showErrorMessage('Anda harus menyetujui Syarat dan Ketentuan');
       return;
@@ -165,8 +179,9 @@ class _RegisterPageState extends State<RegisterPage> {
                   TextFormField(
                     controller: _firstNameController,
                     decoration: InputDecoration(
-                      hintText: 'First Name *',
-                      hintStyle: TextStyle(
+                      labelText: 'First Name',
+                      floatingLabelBehavior: FloatingLabelBehavior.auto,
+                      labelStyle: TextStyle(
                         color: Colors.grey[600],
                         fontSize: 14,
                       ),
@@ -194,8 +209,9 @@ class _RegisterPageState extends State<RegisterPage> {
                   TextFormField(
                     controller: _lastNameController,
                     decoration: InputDecoration(
-                      hintText: 'Last Name *',
-                      hintStyle: TextStyle(
+                      labelText: 'Last Name',
+                      floatingLabelBehavior: FloatingLabelBehavior.auto,
+                      labelStyle: TextStyle(
                         color: Colors.grey[600],
                         fontSize: 14,
                       ),
@@ -223,8 +239,9 @@ class _RegisterPageState extends State<RegisterPage> {
                   TextFormField(
                     controller: _emailController,
                     decoration: InputDecoration(
-                      hintText: 'Email Address *',
-                      hintStyle: TextStyle(
+                      labelText: 'Email Address',
+                      floatingLabelBehavior: FloatingLabelBehavior.auto,
+                      labelStyle: TextStyle(
                         color: Colors.grey[600],
                         fontSize: 14,
                       ),
@@ -253,8 +270,9 @@ class _RegisterPageState extends State<RegisterPage> {
                   TextFormField(
                     controller: _passwordController,
                     decoration: InputDecoration(
-                      hintText: 'Password *',
-                      hintStyle: TextStyle(
+                      labelText: 'Password',
+                      floatingLabelBehavior: FloatingLabelBehavior.auto,
+                      labelStyle: TextStyle(
                         color: Colors.grey[600],
                         fontSize: 14,
                       ),
@@ -287,6 +305,47 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                     obscureText: !_isPasswordVisible,
                     validator: _validatePassword,
+                    enabled: !_isLoading,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _confirmPasswordController,
+                    decoration: InputDecoration(
+                      labelText: 'Konfirmasi Password',
+                      floatingLabelBehavior: FloatingLabelBehavior.auto,
+                      labelStyle: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 14,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(4),
+                        borderSide: BorderSide(color: Colors.grey[300]!),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(4),
+                        borderSide: BorderSide(color: Colors.grey[300]!),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(4),
+                        borderSide: const BorderSide(color: Color(0xFF2E7D32)),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 16,
+                      ),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _isConfirmPasswordVisible ? Icons.visibility_off : Icons.visibility,
+                          color: Colors.grey[600],
+                          size: 20,
+                        ),
+                        onPressed: () {
+                          setState(() => _isConfirmPasswordVisible = !_isConfirmPasswordVisible);
+                        },
+                      ),
+                    ),
+                    obscureText: !_isConfirmPasswordVisible,
+                    validator: _validateConfirmPassword,
                     enabled: !_isLoading,
                   ),
                   const SizedBox(height: 24),

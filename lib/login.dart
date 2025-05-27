@@ -165,8 +165,9 @@ class _LoginPageState extends State<LoginPage> {
           obscureText: !_isPasswordVisible,
           validator: _validatePassword,
           decoration: InputDecoration(
-            hintText: 'Password',
-            hintStyle: TextStyle(
+            labelText: 'Password',
+            floatingLabelBehavior: FloatingLabelBehavior.auto,
+            labelStyle: TextStyle(
               color: Colors.grey[600],
               fontSize: 14,
             ),
@@ -304,8 +305,9 @@ class _LoginPageState extends State<LoginPage> {
                     controller: _emailController,
                     validator: _validateEmail,
                     decoration: InputDecoration(
-                      hintText: 'Email Address *',
-                      hintStyle: TextStyle(
+                      labelText: 'Email Address',
+                      floatingLabelBehavior: FloatingLabelBehavior.auto,
+                      labelStyle: TextStyle(
                         color: Colors.grey[600],
                         fontSize: 14,
                       ),
