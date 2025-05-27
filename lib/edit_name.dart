@@ -46,19 +46,20 @@ class _EditNamePageState extends State<EditNamePage> {
         ),
       );
 
-      // Update the local state if needed
-      await _loadUserData();
-
       if (!mounted) return;
       
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Name updated successfully'),
+          content: Text('Nama berhasil diperbarui'),
           backgroundColor: Colors.green,
         ),
       );
 
-      Navigator.pop(context, true);
+      // Pop and pass back the updated name data
+      Navigator.pop(context, {
+        'first_name': _firstNameController.text.trim(),
+        'last_name': _lastNameController.text.trim(),
+      });
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

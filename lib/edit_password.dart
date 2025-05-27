@@ -24,21 +24,25 @@ class _EditPasswordPageState extends State<EditPasswordPage> {
     setState(() => _isLoading = true);
 
     try {
-      // First verify current password
-      try {
-        final email = Supabase.instance.client.auth.currentUser?.email;
-        if (email != null) {
-          await Supabase.instance.client.auth.signInWithPassword(
-            email: email,
-            password: _currentPasswordController.text,
-          );
-        }
-      } catch (e) {
-        throw 'Current password is incorrect';
+      final supabase = Supabase.instance.client;
+      final currentUser = supabase.auth.currentUser;
+      
+      if (currentUser == null) {
+        throw 'User not found';
       }
 
-      // Update password in Supabase
-      await Supabase.instance.client.auth.updateUser(
+      // Verify current password
+      final response = await supabase.auth.signInWithPassword(
+        email: currentUser.email!,
+        password: _currentPasswordController.text,
+      );
+        
+      if (response.user == null) {
+        throw 'Password saat ini tidak valid';
+      }
+
+      // Update password
+      await supabase.auth.updateUser(
         UserAttributes(
           password: _newPasswordController.text,
         ),
@@ -46,25 +50,29 @@ class _EditPasswordPageState extends State<EditPasswordPage> {
 
       if (!mounted) return;
 
+      // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Password updated successfully. Please login again.'),
+          content: Text('Password berhasil diperbarui'),
           backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
         ),
       );
 
-      // Sign out user after password change
-      await Supabase.instance.client.auth.signOut();
-      
-      // Navigate to login
-      if (!mounted) return;
-      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+      // Wait for snackbar to show before navigating
+      await Future.delayed(const Duration(seconds: 1));
 
-    } catch (e) {
       if (!mounted) return;
+      
+      // Pop back to settings page
+      Navigator.pop(context);
+
+    } catch (error) {
+      if (!mounted) return;
+      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.toString()),
+          content: Text(error.toString()),
           backgroundColor: Colors.red,
         ),
       );

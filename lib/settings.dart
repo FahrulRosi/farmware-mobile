@@ -23,6 +23,7 @@ class _ProfilePageState extends State<ProfilePage> {
   void _loadUserData() async {
     final user = Supabase.instance.client.auth.currentUser;
     if (user != null) {
+      if (!mounted) return;
       setState(() {
         _userData = {
           'display_name': '${user.userMetadata?['first_name'] ?? ''} ${user.userMetadata?['last_name'] ?? ''}'.trim(),
@@ -139,7 +140,17 @@ class _ProfilePageState extends State<ProfilePage> {
                     icon: Icons.person_outline,
                     title: 'Name',
                     subtitle: _userData?['display_name'] ?? 'No name',
-                    onTap: () => Navigator.pushNamed(context, '/edit-name'),
+                    onTap: () async {
+                      final result = await Navigator.pushNamed(context, '/edit-name');
+                      if (result != null && result is Map<String, String>) {
+                        setState(() {
+                          _userData = {
+                            ..._userData ?? {},
+                            'display_name': '${result['first_name']} ${result['last_name']}'.trim(),
+                          };
+                        });
+                      }
+                    },
                   ),
                   _buildSettingsTile(
                     icon: Icons.email_outlined,
