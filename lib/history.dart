@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:timezone/timezone.dart' as tz;
+import 'package:timezone/data/latest.dart' as tz_data;
 
 class FirmwareHistoryPage extends StatefulWidget {
   const FirmwareHistoryPage({super.key});
@@ -16,9 +18,21 @@ class _FirmwareHistoryPageState extends State<FirmwareHistoryPage> {
   String _selectedFilter = 'Semua';
   final List<String> _filterOptions = ['Semua', 'Berhasil', 'Rollback'];
 
+  // Zona waktu untuk Indonesia (WIB)
+  late tz.Location _jakartaTimeZone;
+
   @override
   void initState() {
     super.initState();
+    // Inisialisasi data timezone terlebih dahulu
+    tz_data.initializeTimeZones();
+    _jakartaTimeZone = tz.getLocation('Asia/Jakarta');
+    _loadHistory();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     _loadHistory();
   }
 
@@ -32,21 +46,25 @@ class _FirmwareHistoryPageState extends State<FirmwareHistoryPage> {
           .order('update_date', ascending: false);
 
       setState(() {
-        _updateHistory = data.map<FirmwareUpdate>((item) => FirmwareUpdate(
-          deviceName: '${item['device_type']} (${item['node_type']})',
-          fromVersion: item['version_from'] ?? '',
-          toVersion: item['version_to'] ?? '',
-          date: DateTime.parse(item['update_date']),
-          status: item['status'] == 'Berhasil' 
-              ? UpdateStatus.success 
-              : UpdateStatus.rollback,
-          details: item['description'] ?? 'No description',
-          mlDetails: item['status'] == 'Gagal' ? MLRollbackDetails(
-            confidenceScore: 0.89,
-            anomalyType: 'Automatic rollback',
-            detectedAt: DateTime.parse(item['update_date']),
-          ) : null,
-        )).toList();
+        _updateHistory = data
+            .map<FirmwareUpdate>((item) => FirmwareUpdate(
+                  deviceName: '${item['device_type']} (${item['node_type']})',
+                  fromVersion: item['version_from'] ?? '',
+                  toVersion: item['version_to'] ?? '',
+                  date: DateTime.parse(item['update_date']),
+                  status: item['status'] == 'Berhasil'
+                      ? UpdateStatus.success
+                      : UpdateStatus.rollback,
+                  details: item['description'] ?? 'No description',
+                  mlDetails: item['status'] == 'Gagal'
+                      ? MLRollbackDetails(
+                          confidenceScore: 0.89,
+                          anomalyType: 'Automatic rollback',
+                          detectedAt: DateTime.parse(item['update_date']),
+                        )
+                      : null,
+                ))
+            .toList();
         _isLoading = false;
       });
     } catch (error) {
@@ -65,10 +83,14 @@ class _FirmwareHistoryPageState extends State<FirmwareHistoryPage> {
   List<FirmwareUpdate> get filteredUpdates {
     if (_selectedFilter == 'Semua') return _updateHistory;
     if (_selectedFilter == 'Berhasil') {
-      return _updateHistory.where((u) => u.status == UpdateStatus.success).toList();
+      return _updateHistory
+          .where((u) => u.status == UpdateStatus.success)
+          .toList();
     }
     if (_selectedFilter == 'Rollback') {
-      return _updateHistory.where((u) => u.status == UpdateStatus.rollback).toList();
+      return _updateHistory
+          .where((u) => u.status == UpdateStatus.rollback)
+          .toList();
     }
     return _updateHistory;
   }
@@ -94,10 +116,12 @@ class _FirmwareHistoryPageState extends State<FirmwareHistoryPage> {
                         height: 32,
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         decoration: BoxDecoration(
-                          color: _selectedFilter == 'Semua' 
-                              ? const Color(0xFF00A86B) // Dark green when selected
+                          color: _selectedFilter == 'Semua'
+                              ? const Color(
+                                  0xFF00A86B) // Dark green when selected
                               : Colors.white,
-                          borderRadius: BorderRadius.circular(50), // More rounded corners
+                          borderRadius:
+                              BorderRadius.circular(50), // More rounded corners
                           border: Border.all(
                             color: Colors.grey.withOpacity(0.15),
                             width: 1,
@@ -118,8 +142,8 @@ class _FirmwareHistoryPageState extends State<FirmwareHistoryPage> {
                               fontFamily: 'Poppins',
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
-                              color: _selectedFilter == 'Semua' 
-                                  ? Colors.white 
+                              color: _selectedFilter == 'Semua'
+                                  ? Colors.white
                                   : Colors.grey[600],
                             ),
                           ),
@@ -133,10 +157,12 @@ class _FirmwareHistoryPageState extends State<FirmwareHistoryPage> {
                         height: 32,
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         decoration: BoxDecoration(
-                          color: _selectedFilter == 'Berhasil' 
-                              ? const Color(0xFF00A86B) // Dark green when selected
+                          color: _selectedFilter == 'Berhasil'
+                              ? const Color(
+                                  0xFF00A86B) // Dark green when selected
                               : Colors.white,
-                          borderRadius: BorderRadius.circular(50), // More rounded corners
+                          borderRadius:
+                              BorderRadius.circular(50), // More rounded corners
                           border: Border.all(
                             color: Colors.grey.withOpacity(0.15),
                             width: 1,
@@ -157,8 +183,8 @@ class _FirmwareHistoryPageState extends State<FirmwareHistoryPage> {
                               fontFamily: 'Poppins',
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
-                              color: _selectedFilter == 'Berhasil' 
-                                  ? Colors.white 
+                              color: _selectedFilter == 'Berhasil'
+                                  ? Colors.white
                                   : Colors.grey[600],
                             ),
                           ),
@@ -172,10 +198,12 @@ class _FirmwareHistoryPageState extends State<FirmwareHistoryPage> {
                         height: 32,
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         decoration: BoxDecoration(
-                          color: _selectedFilter == 'Rollback' 
-                              ? const Color(0xFF00A86B) // Dark green when selected
+                          color: _selectedFilter == 'Rollback'
+                              ? const Color(
+                                  0xFF00A86B) // Dark green when selected
                               : Colors.white,
-                          borderRadius: BorderRadius.circular(50), // More rounded corners
+                          borderRadius:
+                              BorderRadius.circular(50), // More rounded corners
                           border: Border.all(
                             color: Colors.grey.withOpacity(0.15),
                             width: 1,
@@ -196,8 +224,8 @@ class _FirmwareHistoryPageState extends State<FirmwareHistoryPage> {
                               fontFamily: 'Poppins',
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
-                              color: _selectedFilter == 'Rollback' 
-                                  ? Colors.white 
+                              color: _selectedFilter == 'Rollback'
+                                  ? Colors.white
                                   : Colors.grey[600],
                             ),
                           ),
@@ -209,17 +237,22 @@ class _FirmwareHistoryPageState extends State<FirmwareHistoryPage> {
               ),
             ),
             Expanded(
-              child: SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    padding: EdgeInsets.zero,
-                    itemCount: filteredUpdates.length,
-                    itemBuilder: (context, index) {
-                      return _buildUpdateCard(filteredUpdates[index]);
-                    },
+              child: RefreshIndicator(
+                onRefresh: _loadHistory,
+                color: const Color(0xFF00A86B),
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: EdgeInsets.zero,
+                      itemCount: filteredUpdates.length,
+                      itemBuilder: (context, index) {
+                        return _buildUpdateCard(filteredUpdates[index]);
+                      },
+                    ),
                   ),
                 ),
               ),
@@ -292,8 +325,8 @@ class _FirmwareHistoryPageState extends State<FirmwareHistoryPage> {
           ),
           Center(
             child: Column(
-              children: const [
-                Text(
+              children: [
+                const Text(
                   'Riwayat Pembaruan',
                   style: TextStyle(
                     fontFamily: 'Poppins',
@@ -331,14 +364,15 @@ class _FirmwareHistoryPageState extends State<FirmwareHistoryPage> {
         color: isSelected ? Theme.of(context).primaryColor : Colors.white,
         borderRadius: BorderRadius.circular(24), // Made more rounded
         border: Border.all(
-          color: isSelected 
-              ? Theme.of(context).primaryColor 
+          color: isSelected
+              ? Theme.of(context).primaryColor
               : Colors.grey.withOpacity(0.2),
           width: 1,
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16), // Slightly wider padding
+        padding: const EdgeInsets.symmetric(
+            horizontal: 16), // Slightly wider padding
         child: Text(
           label,
           textAlign: TextAlign.center,
@@ -355,8 +389,13 @@ class _FirmwareHistoryPageState extends State<FirmwareHistoryPage> {
 
   Widget _buildUpdateCard(FirmwareUpdate update) {
     final bool isSuccess = update.status == UpdateStatus.success;
-    final String formattedDate = DateFormat('dd/MM/yy').format(update.date);
-    
+
+    // Konversi waktu UTC ke Asia/Jakarta
+    final tz.TZDateTime jakartaTime =
+        tz.TZDateTime.from(update.date, _jakartaTimeZone);
+    final String formattedDate =
+        DateFormat('dd/MM/yyyy HH:mm').format(jakartaTime);
+
     return Card(
       elevation: 0,
       color: Colors.white,
@@ -381,11 +420,20 @@ class _FirmwareHistoryPageState extends State<FirmwareHistoryPage> {
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                Text(
-                  formattedDate,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    formattedDate,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey[700],
+                    ),
                   ),
                 ),
               ],
@@ -412,7 +460,8 @@ class _FirmwareHistoryPageState extends State<FirmwareHistoryPage> {
             Align(
               alignment: Alignment.centerRight,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 decoration: BoxDecoration(
                   color: isSuccess ? Colors.green.shade50 : Colors.red.shade50,
                   borderRadius: BorderRadius.circular(16),
@@ -435,15 +484,12 @@ class _FirmwareHistoryPageState extends State<FirmwareHistoryPage> {
 
   void _showRollbackDetailsDialog(FirmwareUpdate update) {
     final mlDetails = update.mlDetails!;
-    
-    // Format dates manually
-    String formatDate(DateTime date) {
-      return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year.toString().substring(2)}';
-    }
 
-    String formatTime(DateTime date) {
-      return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-    }
+    // Konversi waktu UTC ke Asia/Jakarta
+    final tz.TZDateTime jakartaTime =
+        tz.TZDateTime.from(mlDetails.detectedAt, _jakartaTimeZone);
+    final String formattedDateTime =
+        DateFormat('dd/MM/yyyy HH:mm').format(jakartaTime);
 
     showDialog(
       context: context,
@@ -457,12 +503,12 @@ class _FirmwareHistoryPageState extends State<FirmwareHistoryPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildDetailRow('Perangkat', update.deviceName),
-            _buildDetailRow('Tanggal & Waktu',
-                '${formatDate(mlDetails.detectedAt)} ${formatTime(mlDetails.detectedAt)}'),
-            _buildDetailRow('Versi', '${update.fromVersion} → ${update.toVersion}'),
-            _buildDetailRow('Jenis Anomali', mlDetails.anomalyType),
+            _buildDetailRow('Tanggal & Waktu', formattedDateTime),
             _buildDetailRow(
-                'Confidence Score', '${(mlDetails.confidenceScore * 100).toStringAsFixed(0)}%'),
+                'Versi', '${update.fromVersion} → ${update.toVersion}'),
+            _buildDetailRow('Jenis Anomali', mlDetails.anomalyType),
+            _buildDetailRow('Confidence Score',
+                '${(mlDetails.confidenceScore * 100).toStringAsFixed(0)}%'),
             const SizedBox(height: 16),
             const Text(
               'Grafik Performa',
@@ -564,7 +610,6 @@ class _FirmwareHistoryPageState extends State<FirmwareHistoryPage> {
       ),
     );
   }
-
 }
 
 // Model classes
