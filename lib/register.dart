@@ -64,62 +64,38 @@ class _RegisterPageState extends State<RegisterPage> {
 
   Future<void> _handleSignUp() async {
     if (!_formKey.currentState!.validate()) return;
-
-    if (!_agreedToTerms) {
-      _showErrorMessage('Anda harus menyetujui Syarat dan Ketentuan');
-      return;
-    }
-
+    
     setState(() => _isLoading = true);
 
     try {
-      final AuthResponse response = await supabase.auth.signUp(
+      await Supabase.instance.client.auth.signUp(
         email: _emailController.text.trim(),
         password: _passwordController.text,
         data: {
           'first_name': _firstNameController.text.trim(),
           'last_name': _lastNameController.text.trim(),
         },
+        emailRedirectTo: 'com.lokatani.app://login-callback/'
       );
 
-      // if (response.user != null) {
-      //   try {
-      //     // Create user profile
-      //     await supabase.from('profiles').insert({
-      //       'id': response.user!.id,
-      //       'first_name': _firstNameController.text.trim(),
-      //       'last_name': _lastNameController.text.trim(),
-      //       'email': _emailController.text.trim(),
-      //       'created_at': DateTime.now().toIso8601String(),
-      //       'updated_at': DateTime.now().toIso8601String(),
-      //     });
+      if (!mounted) return;
 
-      //     if (!mounted) return;
-          
-      //     // Sign out first to force login
-      //     await supabase.auth.signOut();
-      //       // Show success message with email confirmation info
-      //     _showSuccessMessage(
-      //       'Registrasi berhasil! Silakan periksa email Anda untuk konfirmasi akun. '
-      //       'Setelah mengkonfirmasi email, Anda dapat login dengan akun yang baru dibuat.'
-      //     );
-      //     await Future.delayed(const Duration(seconds: 4)); // Give more time to read the longer message
-      //     if (!mounted) return;
-      //     Navigator.pushReplacementNamed(context, '/login');
-      //   } catch (error) {
-      //     _showErrorMessage('Gagal membuat profil: $error');
-      //     await supabase.auth.admin.deleteUser(response.user!.id);
-      //   }
-      // }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Link verifikasi telah dikirim ke email anda'),
+          backgroundColor: Colors.green,
+        ),
+      );
 
-      _showSuccessMessage(
-            'Registrasi berhasil! Silakan periksa email Anda untuk konfirmasi akun. '
-            'Setelah mengkonfirmasi email, Anda dapat login dengan akun yang baru dibuat.'
-          );
-    } on AuthException catch (error) {
-      _showErrorMessage(error.message);
+      Navigator.pop(context);
     } catch (error) {
-      _showErrorMessage('Terjadi kesalahan: $error');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString()),
+          backgroundColor: Colors.red,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

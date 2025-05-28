@@ -46,8 +46,20 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" />
-                <data android:host="farmware.supabase.co" />
+                <data android:host="fwrvtkfdyinxiqcvvjbw.supabase.co" />
                 <data android:pathPrefix="/auth/v1/verify" />
+                <data android:pathPrefix="/auth/v1/callback" />
+                <data android:pathPrefix="/auth/v1/recover" />
+                <data android:pathPattern=".*type=recovery.*" />
+            </intent-filter>
+
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data 
+                    android:scheme="com.lokatani.app"
+                    android:host="login-callback" />
             </intent-filter>
 
             <intent-filter>

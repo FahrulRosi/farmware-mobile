@@ -39,30 +39,30 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
   Future<void> _handleResetPassword() async {
     if (!_formKey.currentState!.validate()) return;
-
+    
     setState(() => _isLoading = true);
-
+    
     try {
-      final response = await Supabase.instance.client.auth.resetPasswordForEmail(
-        _emailController.text.trim(),
+      await Supabase.instance.client.auth.resetPasswordForEmail(
+        _emailController.text,
+        redirectTo: 'com.lokatani.app://reset-password/',
       );
 
       if (!mounted) return;
       
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Password reset link has been sent to your email'),
+          content: Text('Link reset password telah dikirim ke email anda'),
           backgroundColor: Colors.green,
         ),
       );
       
       Navigator.pop(context);
-      
-    } catch (e) {
+    } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error: ${e.toString()}'),
+          content: Text(error.toString()),
           backgroundColor: Colors.red,
         ),
       );

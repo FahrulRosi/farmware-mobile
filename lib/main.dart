@@ -78,24 +78,45 @@ class _AuthWrapperState extends State<AuthWrapper> {
   @override
   void initState() {
     super.initState();
-    _handleAuthState();
+    _handleInitialDeepLink();
   }
 
-  Future<void> _handleAuthState() async {
+  Future<void> _handleInitialDeepLink() async {
     try {
+      final uri = Uri.base;
+      debugPrint('Initial deep link: $uri');
+
+      // First priority: Handle OTP expired case
+      if (uri.toString().contains('error_code=otp_expired')) {
+        if (!mounted) return;
+        await Future.delayed(Duration.zero);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Email berhasil diverifikasi. Silakan login.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.of(context).pushReplacementNamed('/login');
+        return;
+      }
+
+      // Second priority: Handle password reset
+      if (uri.fragment.contains('type=recovery') || 
+          uri.queryParameters['type'] == 'recovery') {
+        if (!mounted) return;
+        Navigator.of(context).pushReplacementNamed('/reset-password');
+        return;
+      }
+
+      // Check session last
       final session = await Supabase.instance.client.auth.currentSession;
+      if (!mounted) return;
+      
       if (session != null) {
-        final fragment = Uri.base.fragment;
-        if (fragment.contains('type=recovery')) {
-          if (!mounted) return;
-          Navigator.of(context).pushReplacementNamed('/reset-password');
-        } else {
-          if (!mounted) return;
-          Navigator.of(context).pushReplacementNamed('/main');
-        }
+        Navigator.of(context).pushReplacementNamed('/main');
       }
     } catch (e) {
-      debugPrint('Error handling auth state: $e');
+      debugPrint('Error handling deep link: $e');
     }
   }
 
@@ -104,8 +125,17 @@ class _AuthWrapperState extends State<AuthWrapper> {
     return StreamBuilder<AuthState>(
       stream: Supabase.instance.client.auth.onAuthStateChange,
       builder: (context, snapshot) {
-        if (snapshot.hasError) {
+        final uri = Uri.base;
+
+        // Handle OTP expired case first
+        if (uri.toString().contains('error_code=otp_expired')) {
           return const LoginPage();
+        }
+
+        // Handle recovery token
+        if (uri.fragment.contains('type=recovery') || 
+            uri.queryParameters['type'] == 'recovery') {
+          return const ResetPasswordPage();
         }
 
         if (snapshot.hasData) {
