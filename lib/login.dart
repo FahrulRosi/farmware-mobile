@@ -20,7 +20,7 @@ class _LoginPageState extends State<LoginPage> {
   String? _lastAttemptedEmail;
 
   final GoogleSignIn _googleSignIn = GoogleSignIn(
-    clientId: dotenv.env['GOOGLE_CLIENT_ID'],
+    serverClientId: dotenv.env['GOOGLE_CLIENT_ID'],
     scopes: ['email', 'profile'],
   );
 
@@ -55,13 +55,24 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = true);
     
     try {
+      print('Starting Google Sign In...');
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      
       if (googleUser == null) {
+        print('Google sign in was cancelled');
         setState(() => _isLoading = false);
         return;
       }
 
+      print('Google user obtained: ${googleUser.email}');
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      
+      print('ID Token: ${googleAuth.idToken != null ? "Present" : "Null"}');
+      print('Access Token: ${googleAuth.accessToken != null ? "Present" : "Null"}');
+
+      if (googleAuth.idToken == null) {
+        throw Exception('Failed to get Google ID token');
+      }
 
       final AuthResponse res = await Supabase.instance.client.auth.signInWithIdToken(
         provider: OAuthProvider.google,
@@ -69,31 +80,16 @@ class _LoginPageState extends State<LoginPage> {
         accessToken: googleAuth.accessToken,
       );
 
-      if (res.user != null) {
-        if (!mounted) return;
-        
-        // Check if profile exists, if not create one
-        final profile = await Supabase.instance.client
-            .from('profiles')
-            .select()
-            .eq('id', res.user!.id)
-            .single();
-            
-        if (profile == null) {
-          await Supabase.instance.client.from('profiles').insert({
-            'id': res.user!.id,
-            'email': res.user!.email,
-            'first_name': googleUser.displayName?.split(' ').first,
-            'last_name': googleUser.displayName?.split(' ').last,
-            'created_at': DateTime.now().toIso8601String(),
-            'updated_at': DateTime.now().toIso8601String(),
-          });
-        }
-
-        if (!mounted) return;
+      print('Supabase response user: ${res.user != null ? "Present" : "Null"}');
+      
+      if (res.user != null && mounted) {
+        print('Navigation to main page...');
         Navigator.pushReplacementNamed(context, '/main');
+      } else {
+        throw Exception('Failed to authenticate user');
       }
     } catch (e) {
+      print('Error in Google Sign In: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

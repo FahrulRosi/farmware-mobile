@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({Key? key}) : super(key: key);
@@ -21,13 +25,51 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void _loadUserData() async {
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user != null) {
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      final profileImageUrl = user?.userMetadata?['avatar_url'];
+      if (user != null) {
+        if (!mounted) return;
+
+        // Debug: Print metadata untuk melihat struktur data
+        print('User metadata: ${user.userMetadata}');
+
+        // Coba berbagai cara untuk mendapatkan nama dari metadata
+        String displayName = '';
+
+        // Ambil data dari berbagai kemungkinan format metadata
+        if (user.userMetadata?['full_name'] != null) {
+          displayName = user.userMetadata!['full_name'];
+        } else if (user.userMetadata?['name'] != null) {
+          displayName = user.userMetadata!['name'];
+        } else if (user.userMetadata?['user_name'] != null) {
+          displayName = user.userMetadata!['user_name'];
+        } else if (user.userMetadata?['first_name'] != null) {
+          displayName =
+              '${user.userMetadata!['first_name']} ${user.userMetadata!['last_name'] ?? ''}'
+                  .trim();
+        } else {
+          // Jika tidak ada nama di metadata, gunakan email
+          final emailParts = user.email?.split('@') ?? [];
+          displayName = emailParts.isNotEmpty ? emailParts[0] : 'User';
+        }
+
+        setState(() {
+          _userData = {
+            'display_name': displayName,
+            'email': user.email ?? 'No email',
+            'avatar_url': profileImageUrl ?? '',
+          };
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading user data: $e');
       if (!mounted) return;
       setState(() {
         _userData = {
-          'display_name': '${user.userMetadata?['first_name'] ?? ''} ${user.userMetadata?['last_name'] ?? ''}'.trim(),
-          'email': user.email ?? 'No email',
+          'display_name': 'Error loading data',
+          'email': 'Please try again',
         };
         isLoading = false;
       });
@@ -74,14 +116,21 @@ class _ProfilePageState extends State<ProfilePage> {
                             ),
                           ],
                         ),
-                        child: const CircleAvatar(
+                        child: CircleAvatar(
                           radius: 50,
                           backgroundColor: Colors.white70,
-                          child: Icon(
-                            Icons.person,
-                            size: 50,
-                            color: Color(0xFF00A86B),
-                          ),
+                          backgroundImage: _userData != null &&
+                                  _userData!['avatar_url'] != null
+                              ? NetworkImage(_userData!['avatar_url'])
+                              : null,
+                          child: _userData == null ||
+                                  _userData!['avatar_url'] == null
+                              ? const Icon(
+                                  Icons.person,
+                                  size: 50,
+                                  color: Color(0xFF00A86B),
+                                )
+                              : null,
                         ),
                       ),
                       Positioned(
@@ -111,15 +160,20 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                   const SizedBox(height: 16),
                   // Name
-                  Text(
-                    isLoading ? 'Loading...' : (_userData?['display_name'] ?? 'No name'),
-                    style: const TextStyle(
-                      fontFamily: 'Poppins',
-                      fontSize: 24,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
+                  isLoading
+                      ? const CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        )
+                      : Text(
+                          _userData?['display_name'] ?? 'No name',
+                          style: const TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 24,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
                   const SizedBox(height: 30),
                 ],
               ),
@@ -159,12 +213,16 @@ class _ProfilePageState extends State<ProfilePage> {
                           title: 'Name',
                           value: _userData?['display_name'] ?? 'No name',
                           onTap: () async {
-                            final result = await Navigator.pushNamed(context, '/edit-name');
-                            if (result != null && result is Map<String, String>) {
+                            final result = await Navigator.pushNamed(
+                                context, '/edit-name');
+                            if (result != null &&
+                                result is Map<String, String>) {
                               setState(() {
                                 _userData = {
                                   ..._userData ?? {},
-                                  'display_name': '${result['first_name']} ${result['last_name']}'.trim(),
+                                  'display_name':
+                                      '${result['first_name']} ${result['last_name']}'
+                                          .trim(),
                                 };
                               });
                             }
@@ -180,7 +238,8 @@ class _ProfilePageState extends State<ProfilePage> {
                           icon: Icons.lock_outline,
                           title: 'Password',
                           value: '••••••••',
-                          onTap: () => Navigator.pushNamed(context, '/edit-password'),
+                          onTap: () =>
+                              Navigator.pushNamed(context, '/edit-password'),
                           showDivider: false,
                         ),
                       ],
@@ -191,7 +250,8 @@ class _ProfilePageState extends State<ProfilePage> {
                   // Help & Support Section
                   Row(
                     children: const [
-                      Icon(Icons.help_outline, color: Color(0xFF00A86B), size: 24),
+                      Icon(Icons.help_outline,
+                          color: Color(0xFF00A86B), size: 24),
                       SizedBox(width: 8),
                       Text(
                         'Help & Support',
@@ -210,12 +270,22 @@ class _ProfilePageState extends State<ProfilePage> {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: Colors.grey.withOpacity(0.2)),
                     ),
-                    child: _buildSettingItem(
-                      icon: Icons.logout,
-                      title: 'Logout',
-                      onTap: _showLogoutDialog,
-                      isDestructive: true,
-                      showDivider: false,
+                    child: Column(
+                      children: [
+                        _buildSettingItem(
+                          icon: Icons.logout,
+                          title: 'Logout',
+                          onTap: _showLogoutDialog,
+                          isDestructive: true,
+                        ),
+                        _buildSettingItem(
+                          icon: Icons.delete_forever,
+                          title: 'Delete Account',
+                          onTap: _showDeleteAccountDialog,
+                          isDestructive: true,
+                          showDivider: false,
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -259,7 +329,9 @@ class _ProfilePageState extends State<ProfilePage> {
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
-                          color: isDestructive ? Colors.red : const Color(0xFF2F2F2F),
+                          color: isDestructive
+                              ? Colors.red
+                              : const Color(0xFF2F2F2F),
                         ),
                       ),
                       if (value != null) ...[
@@ -278,8 +350,8 @@ class _ProfilePageState extends State<ProfilePage> {
                 Icon(
                   Icons.chevron_right,
                   size: 20,
-                  color: isDestructive 
-                      ? Colors.red.withOpacity(0.7) 
+                  color: isDestructive
+                      ? Colors.red.withOpacity(0.7)
                       : const Color(0xFFBBBBBB),
                 ),
               ],
@@ -327,9 +399,48 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _handleDeleteAccount() async {
     try {
-      await _supabase.auth.admin.deleteUser(
-        _supabase.auth.currentUser!.id,
+      setState(() => isLoading = true);
+
+      final user = _supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('User not found');
+      }
+
+      await dotenv.load(fileName: ".env");
+
+      final supabaseProjectUrl = dotenv.env['SUPABASE_URL'];
+      // URL Edge Function
+      final edgeFunctionUrl = '$supabaseProjectUrl/functions/v1/delete-user';
+
+      // Dapatkan session token
+      final session = await _supabase.auth.currentSession;
+      if (session == null) {
+        throw Exception('No active session');
+      }
+
+      // Siapkan headers dengan token
+      final headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ${session.accessToken}',
+      };
+
+      // Kirim request ke Edge Function
+      final response = await http.post(
+        Uri.parse(edgeFunctionUrl),
+        headers: headers,
+        body: jsonEncode({'userId': user.id}),
       );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode != 200) {
+        throw Exception(
+            data['error'] ?? 'Failed to delete user via Edge Function');
+      }
+
+      // Logout setelah hapus akun
+      await _handleLogout();
+
       if (!mounted) return;
       Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
     } catch (e) {
@@ -338,8 +449,13 @@ class _ProfilePageState extends State<ProfilePage> {
         SnackBar(
           content: Text('Error deleting account: $e'),
           backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
         ),
       );
+    } finally {
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
     }
   }
 
@@ -370,6 +486,9 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _handleLogout() async {
     try {
+      final GoogleSignIn googleSignIn = GoogleSignIn();
+      await googleSignIn.signOut();
+
       await _supabase.auth.signOut();
       if (!mounted) return;
       Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);

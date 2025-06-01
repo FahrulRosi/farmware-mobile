@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'password_validator.dart'; // <--- Tambahkan ini
 
 class ResetPasswordPage extends StatefulWidget {
   const ResetPasswordPage({Key? key}) : super(key: key);
@@ -15,6 +16,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
   bool _isLoading = false;
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
+  List<String> _passwordErrors = [];
 
   @override
   void dispose() {
@@ -24,11 +26,12 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
   }
 
   String? _validatePassword(String? value) {
-    if (value == null || value.isEmpty) {
-      return 'Password is required';
-    }
-    if (value.length < 6) {
-      return 'Password must be at least 6 characters';
+    final errors = PasswordValidator.getPasswordValidationErrors(value ?? '');
+    setState(() {
+      _passwordErrors = errors;
+    });
+    if (errors.isNotEmpty) {
+      return 'Password is not strong enough';
     }
     return null;
   }
@@ -46,22 +49,14 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
     setState(() => _isLoading = true);
 
     try {
-      // Get current session
       final Session? session = Supabase.instance.client.auth.currentSession;
-      
-      if (session == null) {
-        throw 'No active session found';
-      }
+      if (session == null) throw 'No active session found';
 
-      // Update user password
       await Supabase.instance.client.auth.updateUser(
-        UserAttributes(
-          password: _passwordController.text,
-        ),
+        UserAttributes(password: _passwordController.text),
       );
 
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Password has been updated successfully'),
@@ -70,13 +65,10 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
         ),
       );
 
-      // Sign out user after password update
       await Supabase.instance.client.auth.signOut();
 
-      // Redirect to login page
       if (!mounted) return;
       Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
-
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -126,6 +118,9 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                   TextFormField(
                     controller: _passwordController,
                     obscureText: !_isPasswordVisible,
+                    onChanged: (value) {
+                      _validatePassword(value); // Update dynamic alert
+                    },
                     validator: _validatePassword,
                     decoration: InputDecoration(
                       hintText: 'New Password',
@@ -154,6 +149,16 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                       ),
                     ),
                   ),
+                  if (_passwordErrors.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: _passwordErrors.map((e) => Text(
+                        '• $e',
+                        style: const TextStyle(fontSize: 12, color: Colors.red),
+                      )).toList(),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _confirmPasswordController,

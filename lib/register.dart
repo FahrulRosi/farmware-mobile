@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'password_validator.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({Key? key}) : super(key: key);
@@ -14,11 +15,13 @@ class _RegisterPageState extends State<RegisterPage> {
   final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
   bool _isLoading = false;
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
   bool _agreedToTerms = false;
+  List<String> _passwordErrors = [];
 
   final supabase = Supabase.instance.client;
 
@@ -43,11 +46,12 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   String? _validatePassword(String? value) {
-    if (value == null || value.isEmpty) {
-      return 'Password wajib diisi';
-    }
-    if (value.length < 6) {
-      return 'Password minimal 6 karakter';
+    final errors = PasswordValidator.getPasswordValidationErrors(value ?? '');
+    setState(() {
+      _passwordErrors = errors;
+    });
+    if (errors.isNotEmpty) {
+      return 'Password is not strong enough';
     }
     return null;
   }
@@ -64,19 +68,18 @@ class _RegisterPageState extends State<RegisterPage> {
 
   Future<void> _handleSignUp() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     setState(() => _isLoading = true);
 
     try {
       await Supabase.instance.client.auth.signUp(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-        data: {
-          'first_name': _firstNameController.text.trim(),
-          'last_name': _lastNameController.text.trim(),
-        },
-        emailRedirectTo: 'com.lokatani.app://login-callback/'
-      );
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+          data: {
+            'first_name': _firstNameController.text.trim(),
+            'last_name': _lastNameController.text.trim(),
+          },
+          emailRedirectTo: 'com.lokatani.app://login-callback/');
 
       if (!mounted) return;
 
@@ -178,7 +181,9 @@ class _RegisterPageState extends State<RegisterPage> {
                         vertical: 16,
                       ),
                     ),
-                    validator: (value) => value?.isEmpty == true ? 'First name wajib diisi' : null,
+                    validator: (value) => value?.isEmpty == true
+                        ? 'First name wajib diisi'
+                        : null,
                     enabled: !_isLoading,
                   ),
                   const SizedBox(height: 16),
@@ -208,7 +213,8 @@ class _RegisterPageState extends State<RegisterPage> {
                         vertical: 16,
                       ),
                     ),
-                    validator: (value) => value?.isEmpty == true ? 'Last name wajib diisi' : null,
+                    validator: (value) =>
+                        value?.isEmpty == true ? 'Last name wajib diisi' : null,
                     enabled: !_isLoading,
                   ),
                   const SizedBox(height: 16),
@@ -270,19 +276,35 @@ class _RegisterPageState extends State<RegisterPage> {
                       ),
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _isPasswordVisible ? Icons.visibility_off : Icons.visibility,
+                          _isPasswordVisible
+                              ? Icons.visibility_off
+                              : Icons.visibility,
                           color: Colors.grey[600],
                           size: 20,
                         ),
                         onPressed: () {
-                          setState(() => _isPasswordVisible = !_isPasswordVisible);
+                          setState(
+                              () => _isPasswordVisible = !_isPasswordVisible);
                         },
                       ),
                     ),
                     obscureText: !_isPasswordVisible,
+                    onChanged: (value) {
+                      _validatePassword(value); // Update dynamic alert
+                    },
                     validator: _validatePassword,
                     enabled: !_isLoading,
                   ),
+                  if (_passwordErrors.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: _passwordErrors.map((e) => Text(
+                        '• $e',
+                        style: const TextStyle(fontSize: 12, color: Colors.red),
+                      )).toList(),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _confirmPasswordController,
@@ -311,12 +333,15 @@ class _RegisterPageState extends State<RegisterPage> {
                       ),
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _isConfirmPasswordVisible ? Icons.visibility_off : Icons.visibility,
+                          _isConfirmPasswordVisible
+                              ? Icons.visibility_off
+                              : Icons.visibility,
                           color: Colors.grey[600],
                           size: 20,
                         ),
                         onPressed: () {
-                          setState(() => _isConfirmPasswordVisible = !_isConfirmPasswordVisible);
+                          setState(() => _isConfirmPasswordVisible =
+                              !_isConfirmPasswordVisible);
                         },
                       ),
                     ),
@@ -334,14 +359,16 @@ class _RegisterPageState extends State<RegisterPage> {
                           value: _agreedToTerms,
                           onChanged: _isLoading
                               ? null
-                              : (value) => setState(() => _agreedToTerms = value ?? false),
+                              : (value) => setState(
+                                  () => _agreedToTerms = value ?? false),
                           activeColor: const Color(0xFF2E7D32),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: GestureDetector(
-                          onTap: () => setState(() => _agreedToTerms = !_agreedToTerms),
+                          onTap: () =>
+                              setState(() => _agreedToTerms = !_agreedToTerms),
                           child: Text.rich(
                             TextSpan(
                               children: [
@@ -369,7 +396,8 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                   const SizedBox(height: 24),
                   ElevatedButton(
-                    onPressed: _isLoading || !_agreedToTerms ? null : _handleSignUp,
+                    onPressed:
+                        _isLoading || !_agreedToTerms ? null : _handleSignUp,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF2E7D32),
                       foregroundColor: Colors.white,
@@ -385,7 +413,8 @@ class _RegisterPageState extends State<RegisterPage> {
                             width: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
                           )
                         : const Text(

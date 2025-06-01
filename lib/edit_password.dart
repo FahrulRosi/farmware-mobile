@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'password_validator.dart';
 
 class EditPasswordPage extends StatefulWidget {
   const EditPasswordPage({Key? key}) : super(key: key);
@@ -18,6 +19,14 @@ class _EditPasswordPageState extends State<EditPasswordPage> {
   bool _showNewPassword = false;
   bool _showConfirmPassword = false;
 
+  List<String> _passwordErrors = [];
+
+  void _validatePassword(String password) {
+    setState(() {
+      _passwordErrors = PasswordValidator.getPasswordValidationErrors(password);
+    });
+  }
+
   Future<void> _handleUpdatePassword() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -26,31 +35,26 @@ class _EditPasswordPageState extends State<EditPasswordPage> {
     try {
       final supabase = Supabase.instance.client;
       final currentUser = supabase.auth.currentUser;
-      
+
       if (currentUser == null) {
         throw 'User not found';
       }
 
-      // Verify current password
       final response = await supabase.auth.signInWithPassword(
         email: currentUser.email!,
         password: _currentPasswordController.text,
       );
-        
+
       if (response.user == null) {
         throw 'Password saat ini tidak valid';
       }
 
-      // Update password
       await supabase.auth.updateUser(
-        UserAttributes(
-          password: _newPasswordController.text,
-        ),
+        UserAttributes(password: _newPasswordController.text),
       );
 
       if (!mounted) return;
 
-      // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Password berhasil diperbarui'),
@@ -59,17 +63,13 @@ class _EditPasswordPageState extends State<EditPasswordPage> {
         ),
       );
 
-      // Wait for snackbar to show before navigating
       await Future.delayed(const Duration(seconds: 1));
-
       if (!mounted) return;
-      
-      // Pop back to settings page
+
       Navigator.pop(context);
 
     } catch (error) {
       if (!mounted) return;
-      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(error.toString()),
@@ -79,6 +79,14 @@ class _EditPasswordPageState extends State<EditPasswordPage> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  @override
+  void dispose() {
+    _currentPasswordController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
   }
 
   @override
@@ -93,7 +101,7 @@ class _EditPasswordPageState extends State<EditPasswordPage> {
         padding: const EdgeInsets.all(16),
         child: Form(
           key: _formKey,
-          child: Column(
+          child: ListView(
             children: [
               TextFormField(
                 controller: _currentPasswordController,
@@ -107,9 +115,8 @@ class _EditPasswordPageState extends State<EditPasswordPage> {
                           ? Icons.visibility_off
                           : Icons.visibility,
                     ),
-                    onPressed: () => setState(
-                      () => _showCurrentPassword = !_showCurrentPassword,
-                    ),
+                    onPressed: () => setState(() =>
+                        _showCurrentPassword = !_showCurrentPassword),
                   ),
                 ),
                 validator: (value) {
@@ -123,6 +130,7 @@ class _EditPasswordPageState extends State<EditPasswordPage> {
               TextFormField(
                 controller: _newPasswordController,
                 obscureText: !_showNewPassword,
+                onChanged: _validatePassword,
                 decoration: InputDecoration(
                   labelText: 'New Password',
                   border: const OutlineInputBorder(),
@@ -132,21 +140,37 @@ class _EditPasswordPageState extends State<EditPasswordPage> {
                           ? Icons.visibility_off
                           : Icons.visibility,
                     ),
-                    onPressed: () => setState(
-                      () => _showNewPassword = !_showNewPassword,
-                    ),
+                    onPressed: () => setState(() =>
+                        _showNewPassword = !_showNewPassword),
                   ),
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Please enter a new password';
                   }
-                  if (value.length < 6) {
-                    return 'Password must be at least 6 characters';
+                  if (_passwordErrors.isNotEmpty) {
+                    return 'Please fix password requirements';
                   }
                   return null;
                 },
               ),
+              const SizedBox(height: 8),
+              if (_passwordErrors.isNotEmpty) ...[
+                const Text(
+                  'Password Requirements:',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                ..._passwordErrors.map(
+                  (error) => Row(
+                    children: [
+                      const Icon(Icons.error_outline, size: 16, color: Colors.red),
+                      const SizedBox(width: 8),
+                      Text(error, style: const TextStyle(color: Colors.red, fontSize: 12)),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
               TextFormField(
                 controller: _confirmPasswordController,
@@ -160,9 +184,8 @@ class _EditPasswordPageState extends State<EditPasswordPage> {
                           ? Icons.visibility_off
                           : Icons.visibility,
                     ),
-                    onPressed: () => setState(
-                      () => _showConfirmPassword = !_showConfirmPassword,
-                    ),
+                    onPressed: () => setState(() =>
+                        _showConfirmPassword = !_showConfirmPassword),
                   ),
                 ),
                 validator: (value) {
