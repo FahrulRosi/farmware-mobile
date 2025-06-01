@@ -78,6 +78,12 @@ flutter:
         - asset: fonts/Poppins/Poppins-Bold.ttf
           weight: 700
 
+android:
+  package: com.lokatani.app
+  queries:
+    - scheme: "com.lokatani.app"
+    - scheme: "https"
+
   # To add assets to your application, add an assets section, like this:
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg

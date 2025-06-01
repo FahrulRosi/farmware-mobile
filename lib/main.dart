@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-
 import 'login.dart';
 import 'register.dart';
 import 'home.dart';
@@ -78,48 +77,87 @@ class _AuthWrapperState extends State<AuthWrapper> {
   @override
   void initState() {
     super.initState();
-    _handleAuthState();
+    _handleDeepLink();
   }
 
-  Future<void> _handleAuthState() async {
+  Future<void> _handleDeepLink() async {
     try {
+      final uri = Uri.base;
+      debugPrint('Deep link URI: ${uri.toString()}');
+
+      // Check for recovery token in both query and fragment
+      final isRecovery = uri.toString().contains('type=recovery') || 
+                        uri.fragment.contains('type=recovery');
+
+      if (isRecovery) {
+        debugPrint('Recovery token found, forcing reset password flow');
+        
+        // Force sign out and clear session
+        await Supabase.instance.client.auth.signOut();
+        
+        if (!mounted) return;
+
+        // Use a more aggressive navigation approach
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            PageRouteBuilder(
+              pageBuilder: (_, __, ___) => const ResetPasswordPage(),
+              transitionDuration: Duration.zero,
+            ),
+            (_) => false, // Remove all routes
+          );
+        });
+        return;
+      }
+
+      // Handle email verification separately
+      if (uri.toString().contains('error_code=otp_expired')) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Email berhasil diverifikasi. Silakan login.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.of(context).pushReplacementNamed('/login');
+        return;
+      }
+
+      // Check session only if no deep links
       final session = await Supabase.instance.client.auth.currentSession;
-      if (session != null) {
-        final fragment = Uri.base.fragment;
-        if (fragment.contains('type=recovery')) {
-          if (!mounted) return;
-          Navigator.of(context).pushReplacementNamed('/reset-password');
-        } else {
-          if (!mounted) return;
-          Navigator.of(context).pushReplacementNamed('/main');
-        }
+      if (session != null && mounted) {
+        Navigator.of(context).pushReplacementNamed('/main');
       }
     } catch (e) {
-      debugPrint('Error handling auth state: $e');
+      debugPrint('Error in deep link handler: $e');
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Completely bypass StreamBuilder for recovery links
+    final uri = Uri.base;
+    final isRecovery = uri.toString().contains('type=recovery') || 
+                      uri.fragment.contains('type=recovery');
+
+    if (isRecovery) {
+      return const ResetPasswordPage();
+    }
+
     return StreamBuilder<AuthState>(
       stream: Supabase.instance.client.auth.onAuthStateChange,
       builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return const LoginPage();
-        }
-
-        if (snapshot.hasData) {
+        // Never handle recovery in StreamBuilder
+        if (snapshot.hasData && !isRecovery) {
           final event = snapshot.data!.event;
           switch (event) {
-            case AuthChangeEvent.passwordRecovery:
-              return const ResetPasswordPage();
             case AuthChangeEvent.signedIn:
               return const MainNavigation();
             default:
               return const LoginPage();
           }
         }
-
         return const LoginPage();
       },
     );

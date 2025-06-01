@@ -37,10 +37,12 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F5F5),
       body: SafeArea(
-        child: Column(
+        child: ListView(
+          padding: EdgeInsets.zero,
           children: [
-            // Profile Header with Background
+            // Profile Header
             Container(
               width: double.infinity,
               decoration: BoxDecoration(
@@ -123,56 +125,98 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ),
 
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(16),
+            // Settings Content
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
                 children: [
-                  const Text(
-                    'Account Settings',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF2E7D32),
-                    ),
+                  // Account Settings Section
+                  Row(
+                    children: const [
+                      Icon(Icons.settings, color: Color(0xFF00A86B), size: 24),
+                      SizedBox(width: 8),
+                      Text(
+                        'Account Settings',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF2F2F2F),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 16),
-                  _buildSettingsTile(
-                    icon: Icons.person_outline,
-                    title: 'Name',
-                    subtitle: _userData?['display_name'] ?? 'No name',
-                    onTap: () async {
-                      final result = await Navigator.pushNamed(context, '/edit-name');
-                      if (result != null && result is Map<String, String>) {
-                        setState(() {
-                          _userData = {
-                            ..._userData ?? {},
-                            'display_name': '${result['first_name']} ${result['last_name']}'.trim(),
-                          };
-                        });
-                      }
-                    },
-                  ),
-                  _buildSettingsTile(
-                    icon: Icons.email_outlined,
-                    title: 'Email',
-                    subtitle: _userData?['email'] ?? 'No email',
-                    enabled: false,
-                  ),
-                  _buildSettingsTile(
-                    icon: Icons.lock_outline,
-                    title: 'Password',
-                    subtitle: '••••••••',
-                    onTap: () => Navigator.pushNamed(context, '/edit-password'),
-                  ),
-                  const SizedBox(height: 24),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.logout, color: Colors.red),
-                    title: const Text(
-                      'Logout',
-                      style: TextStyle(color: Colors.red),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.withOpacity(0.2)),
                     ),
-                    onTap: _showLogoutDialog,
+                    child: Column(
+                      children: [
+                        _buildSettingItem(
+                          icon: Icons.person_outline,
+                          title: 'Name',
+                          value: _userData?['display_name'] ?? 'No name',
+                          onTap: () async {
+                            final result = await Navigator.pushNamed(context, '/edit-name');
+                            if (result != null && result is Map<String, String>) {
+                              setState(() {
+                                _userData = {
+                                  ..._userData ?? {},
+                                  'display_name': '${result['first_name']} ${result['last_name']}'.trim(),
+                                };
+                              });
+                            }
+                          },
+                        ),
+                        _buildSettingItem(
+                          icon: Icons.email_outlined,
+                          title: 'Email',
+                          value: _userData?['email'] ?? 'No email',
+                          enabled: false,
+                        ),
+                        _buildSettingItem(
+                          icon: Icons.lock_outline,
+                          title: 'Password',
+                          value: '••••••••',
+                          onTap: () => Navigator.pushNamed(context, '/edit-password'),
+                          showDivider: false,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+                  // Help & Support Section
+                  Row(
+                    children: const [
+                      Icon(Icons.help_outline, color: Color(0xFF00A86B), size: 24),
+                      SizedBox(width: 8),
+                      Text(
+                        'Help & Support',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF2F2F2F),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                    ),
+                    child: _buildSettingItem(
+                      icon: Icons.logout,
+                      title: 'Logout',
+                      onTap: _showLogoutDialog,
+                      isDestructive: true,
+                      showDivider: false,
+                    ),
                   ),
                 ],
               ),
@@ -183,50 +227,71 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildSettingsTile({
+  Widget _buildSettingItem({
     required IconData icon,
     required String title,
-    String? subtitle,
-    Color? titleColor,
-    bool showDivider = true,
+    String? value,
     VoidCallback? onTap,
     bool enabled = true,
+    bool isDestructive = false,
+    bool showDivider = true,
   }) {
     return Column(
       children: [
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: Icon(icon, color: const Color(0xFF00A86B)),
-          title: Text(
-            title,
-            style: TextStyle(
-              fontFamily: 'Poppins',
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              color: titleColor ?? const Color(0xFF2F2F2F),
+        InkWell(
+          onTap: enabled ? onTap : null,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  size: 24,
+                  color: isDestructive ? Colors.red : const Color(0xFF00A86B),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: isDestructive ? Colors.red : const Color(0xFF2F2F2F),
+                        ),
+                      ),
+                      if (value != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          value,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF666666),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right,
+                  size: 20,
+                  color: isDestructive 
+                      ? Colors.red.withOpacity(0.7) 
+                      : const Color(0xFFBBBBBB),
+                ),
+              ],
             ),
           ),
-          subtitle: subtitle != null
-              ? Text(
-                  subtitle,
-                  style: const TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 14,
-                    color: Color(0xFF666666),
-                  ),
-                )
-              : null,
-          trailing: const Icon(
-            Icons.arrow_forward_ios,
-            size: 16,
-            color: Color(0xFF666666),
-          ),
-          onTap: enabled ? onTap : null,
         ),
         if (showDivider)
           const Divider(
             height: 1,
             thickness: 1,
+            indent: 52,
+            endIndent: 0,
             color: Color(0xFFEEEEEE),
           ),
       ],

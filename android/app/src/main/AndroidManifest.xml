@@ -1,7 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
     
     <application
         android:label="lokatani"
@@ -50,13 +48,25 @@
                 <data android:scheme="https" />
                 <data android:host="fwrvtkfdyinxiqcvvjbw.supabase.co" />
                 <data android:pathPrefix="/auth/v1/verify" />
+                <data android:pathPrefix="/auth/v1/callback" />
+                <data android:pathPrefix="/auth/v1/recover" />
+                <data android:pathPattern=".*type=recovery.*" />
+            </intent-filter>
+
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data 
+                    android:scheme="com.lokatani.app"
+                    android:host="login-callback" />
             </intent-filter>
 
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="com.lokatani.app" />
+                <data android:scheme="farmware" />
                 <data android:host="reset-password" />
             </intent-filter>
 
