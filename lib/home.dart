@@ -478,8 +478,9 @@ class _HomePageState extends State<HomePage> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
+        clipBehavior: Clip.hardEdge, // Tambahkan ini agar isi tidak keluar card
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+          padding: const EdgeInsets.fromLTRB(24, 32, 24, 24), // Tambah padding jika perlu
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -540,18 +541,7 @@ class _HomePageState extends State<HomePage> {
                           reservedSize: 30,
                           interval: 1,
                           getTitlesWidget: (value, meta) {
-                            final hours = ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'];
-                            final index = value.toInt();
-                            if (index >= 0 && index < hours.length) {
-                              return Text(
-                                hours[index],
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 12,
-                                  fontFamily: fontFamily,
-                                ),
-                              );
-                            }
+                            // Tidak menampilkan label apapun di sumbu X
                             return const Text('');
                           },
                         ),
