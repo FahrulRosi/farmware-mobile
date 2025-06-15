@@ -37,7 +37,8 @@ dependencies:
   device_preview: ^1.2.0
   fl_chart: ^1.0.0
   intl: ^0.20.2
-  mqtt_client: ^10.0.0
+  # mqtt_client: ^10.0.0
+  mqtt5_client: ^4.13.2
   supabase_flutter: ^2.9.0
   file_picker: ^8.0.0+1
   http: ^1.1.0

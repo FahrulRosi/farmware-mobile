@@ -51,7 +51,7 @@ class _FirmwareUploadPageState extends State<FirmwareUploadPage> {
 
   // API endpoint
   static const String _uploadEndpoint =
-      'https://update-firm-79269000209.asia-southeast2.run.app/upload';
+      'https://update.lokatani.site/upload';
   // Device types and node types options
   final List<String> _deviceTypes = [
     'ESP 32',

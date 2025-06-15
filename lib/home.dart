@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:math';
-import 'package:mqtt_client/mqtt_client.dart';
-import 'package:mqtt_client/mqtt_server_client.dart';
+import 'package:mqtt5_client/mqtt5_client.dart';
+import 'package:mqtt5_client/mqtt5_server_client.dart';
 import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -39,30 +45,105 @@ class _HomePageState extends State<HomePage> {
   List<SensorData> _sensorHistory = [];
   static const int maxDataPoints = 10;
 
+  // Add variables for dynamic date and last update
+  String _currentDate = '';
+  String _lastUpdateText = 'Loading...';
+  DateTime? _lastUpdateTime;
+
   @override
   void initState() {
     super.initState();
+    _initializeLocale();
+  }
+
+  // Initialize Indonesian locale and setup other components
+  Future<void> _initializeLocale() async {
+    await initializeDateFormatting('id_ID', null);
+    _setupCurrentDate();
+    _loadLastUpdateTime();
     _setupMqttClient();
   }
 
-  Future<void> _setupMqttClient() async {
-    _client = MqttServerClient(
-        's1c71808.ala.asia-southeast1.emqxsl.com',
-        'flutter_client_${DateTime.now().millisecondsSinceEpoch}');
+  void _setupCurrentDate() {
+    final now = DateTime.now();
+    final formatter = DateFormat('dd MMMM yyyy', 'id_ID');
+    setState(() {
+      _currentDate = formatter.format(now);
+    });
+  }
 
-    _client.port = 8883; // Port untuk MQTT over SSL
-    _client.secure = true; // Menggunakan SSL
-    _client.logging(on: true);
+  Future<void> _loadLastUpdateTime() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final data = await supabase
+          .from('firmware_history')
+          .select('update_date')
+          .order('update_date', ascending: false)
+          .limit(1);
+
+      if (data.isNotEmpty) {
+        final lastUpdate = DateTime.parse(data[0]['update_date']);
+        setState(() {
+          _lastUpdateTime = lastUpdate;
+          _lastUpdateText = _formatTimeDifference(lastUpdate);
+        });
+      } else {
+        setState(() {
+          _lastUpdateText = 'No updates yet';
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading last update time: $e');
+      setState(() {
+        _lastUpdateText = 'Update time unavailable';
+      });
+    }
+  }
+
+  String _formatTimeDifference(DateTime lastUpdate) {
+    final now = DateTime.now();
+    final difference = now.difference(lastUpdate);
+
+    if (difference.inDays > 0) {
+      return 'Updated ${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago';
+    } else if (difference.inHours > 0) {
+      return 'Updated ${difference.inHours} hour${difference.inHours == 1 ? '' : 's'} ago';
+    } else if (difference.inMinutes > 0) {
+      return 'Updated ${difference.inMinutes} min ago';
+    } else {
+      return 'Updated just now';
+    }
+  }
+
+  // Update the time difference periodically
+  void _updateTimeDifference() {
+    if (_lastUpdateTime != null) {
+      setState(() {
+        _lastUpdateText = _formatTimeDifference(_lastUpdateTime!);
+      });
+    }
+  }
+
+  Future<void> _setupMqttClient() async {
+    // Generate very short client ID
+    final clientId = 'fl${DateTime.now().millisecondsSinceEpoch % 10000}';
+
+    _client =
+        MqttServerClient(dotenv.env['MQTT_SERVER_URL']!, clientId);
+
+    _client.port = 8883;
+    _client.secure = true;
+    _client.logging(on: false);
     _client.keepAlivePeriod = 60;
     _client.onDisconnected = onDisconnected;
     _client.onConnected = onConnected;
     _client.onSubscribed = onSubscribed;
 
     final connMessage = MqttConnectMessage()
-        .authenticateAs('lokatani', 'lokatani711')
-        .withClientIdentifier('flutter_client_${DateTime.now().millisecondsSinceEpoch}')
-        .startClean()
-        .withWillQos(MqttQos.atLeastOnce);
+        .authenticateAs(dotenv.env['MQTT_USERNAME']!, dotenv.env['MQTT_PASSWORD']!)
+        .withClientIdentifier(clientId)
+        .startClean();
+    // Remove .withWillQos(MqttQos.atLeastOnce) to reduce packet size
 
     _client.connectionMessage = connMessage;
 
@@ -72,14 +153,18 @@ class _HomePageState extends State<HomePage> {
         debugPrint('Connected to MQTT broker');
         _client.subscribe('monitoring/sensor', MqttQos.atLeastOnce);
 
-        _client.updates!.listen((List<MqttReceivedMessage<MqttMessage>> messages) {
+        _client.updates!
+            .listen((List<MqttReceivedMessage<MqttMessage>> messages) {
           final recMess = messages[0].payload as MqttPublishMessage;
-          final payload = MqttPublishPayload.bytesToStringAsString(recMess.payload.message);
+          final payload = recMess.payload.message != null
+              ? MqttPublishPayload.bytesToStringAsString(
+                  recMess.payload.message!)
+              : '';
           _processMessage(payload);
         });
       }
     } catch (e) {
-      debugPrint('Exception: $e');
+      debugPrint('MQTT Connection Exception: $e');
       _client.disconnect();
     }
   }
@@ -92,8 +177,8 @@ class _HomePageState extends State<HomePage> {
     debugPrint('Disconnected from MQTT broker');
   }
 
-  void onSubscribed(String topic) {
-    debugPrint('Subscribed to topic: $topic');
+  void onSubscribed(MqttSubscription subscription) {
+    debugPrint('Subscribed to topic: ${subscription.topic}');
   }
 
   void _processMessage(String payload) {
@@ -129,6 +214,9 @@ class _HomePageState extends State<HomePage> {
           _sensorHistory.removeAt(0);
         }
       });
+
+      // Update time difference when new sensor data arrives
+      _updateTimeDifference();
     } catch (e) {
       debugPrint('Error processing message: $e');
     }
@@ -204,7 +292,7 @@ class _HomePageState extends State<HomePage> {
               ),
               SizedBox(height: 5),
               Text(
-                '15 April 2025  Updated 5 min ago',
+                '$_currentDate  $_lastUpdateText',
                 style: TextStyle(
                   fontSize: 14,
                   color: Colors.black54,
@@ -434,7 +522,8 @@ class _HomePageState extends State<HomePage> {
                   range,
                   style: TextStyle(
                     color: isSelected ? Colors.white : Colors.black,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    fontWeight:
+                        isSelected ? FontWeight.bold : FontWeight.normal,
                     fontSize: 16,
                     fontFamily: fontFamily,
                   ),
@@ -452,9 +541,11 @@ class _HomePageState extends State<HomePage> {
     // Instead of random data, use _sensorHistory
     final spots = List<List<FlSpot>>.generate(3, (i) {
       return _sensorHistory.asMap().entries.map((entry) {
-        final value = i == 0 ? entry.value.suhu :
-                     i == 1 ? entry.value.kelembabanTanah :
-                             entry.value.kelembabanUdara;
+        final value = i == 0
+            ? entry.value.suhu
+            : i == 1
+                ? entry.value.kelembabanTanah
+                : entry.value.kelembabanUdara;
         return FlSpot(entry.key.toDouble(), value);
       }).toList();
     });
@@ -465,11 +556,7 @@ class _HomePageState extends State<HomePage> {
       Colors.blue, // Humidity
     ];
 
-    final List<String> legends = [
-      'Temperature',
-      'Soil Moisture',
-      'Humidity'
-    ];
+    final List<String> legends = ['Temperature', 'Soil Moisture', 'Humidity'];
 
     return AspectRatio(
       aspectRatio: 1.7,
@@ -480,7 +567,8 @@ class _HomePageState extends State<HomePage> {
         ),
         clipBehavior: Clip.hardEdge, // Tambahkan ini agar isi tidak keluar card
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 32, 24, 24), // Tambah padding jika perlu
+          padding: const EdgeInsets.fromLTRB(
+              24, 32, 24, 24), // Tambah padding jika perlu
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
